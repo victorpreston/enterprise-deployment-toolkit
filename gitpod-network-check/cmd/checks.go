@@ -33,8 +33,8 @@ var networkCheckTag = []iam_types.Tag{
 	},
 }
 
-func initAwsConfig(ctx context.Context) (aws.Config, error) {
-	return config.LoadDefaultConfig(ctx)
+func initAwsConfig(ctx context.Context, region string) (aws.Config, error) {
+	return config.LoadDefaultConfig(ctx, config.WithRegion(region))
 }
 
 // this will be useful when we are cleaning up things at the end
@@ -51,7 +51,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 	Short:             "Runs the network check diagnosis",
 	SilenceUsage:      false,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := initAwsConfig(cmd.Context())
+		cfg, err := initAwsConfig(cmd.Context(), networkConfig.AwsRegion)
 		if err != nil {
 			return err
 		}
@@ -61,7 +61,10 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		iamClient := iam.NewFromConfig(cfg)
 
 		defer cleanup(cmd.Context(), ec2Client, iamClient)
-		checkSMPrerequisites(cmd.Context(), ec2Client)
+		err = checkSMPrerequisites(cmd.Context(), ec2Client)
+		if err != nil {
+			return fmt.Errorf("❌ failed to check prerequisites: %v", err)
+		}
 
 		role, err := createIAMRoleAndAttachPolicy(cmd.Context(), iamClient)
 		if err != nil {
@@ -75,18 +78,19 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		}
 		InstanceProfile = aws.ToString(instanceProfile.InstanceProfileName)
 
-		log.Infof("ℹ️  Launching EC2 instance in a Main subnet")
-		mainInstanceId, err := launchInstance(cmd.Context(), ec2Client, networkConfig.MainSubnets[0], instanceProfile.Arn)
+		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
+		mainInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.MainSubnets, instanceProfile.Arn)
 		if err != nil {
-			return fmt.Errorf("❌ Failed to launch instances in subnet %s: %v", networkConfig.MainSubnets[0], err)
+			return err
 		}
+		InstanceIds = append(InstanceIds, mainInstanceIds...)
 
-		log.Infof("ℹ️  Launching EC2 instance in a Pod subnet")
-		podInstanceId, err := launchInstance(cmd.Context(), ec2Client, networkConfig.PodSubnets[0], instanceProfile.Arn)
+		log.Infof("ℹ️  Launching EC2 instances in a Pod subnets")
+		podInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.PodSubnets, instanceProfile.Arn)
 		if err != nil {
-			return fmt.Errorf("❌ Failed to launch instances in subnet %s: %v", networkConfig.PodSubnets[0], err)
+			return err
 		}
-		InstanceIds = []string{mainInstanceId, podInstanceId}
+		InstanceIds = append(InstanceIds, podInstanceIds...)
 
 		log.Infof("ℹ️  Waiting for EC2 instances to become ready (can take up to 2 minutes)")
 		waiter := ec2.NewInstanceRunningWaiter(ec2Client, func(irwo *ec2.InstanceRunningWaiterOptions) {
@@ -129,7 +133,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			"S3":       fmt.Sprintf("https://s3.%s.amazonaws.com", networkConfig.AwsRegion),
 			"DynamoDB": fmt.Sprintf("https://dynamodb.%s.amazonaws.com", networkConfig.AwsRegion),
 		}
-		checkServicesAvailability(cmd.Context(), ssmClient, []string{mainInstanceId}, serviceEndpointsForMain)
+		checkServicesAvailability(cmd.Context(), ssmClient, mainInstanceIds, serviceEndpointsForMain)
 
 		return nil
 	},
@@ -240,8 +244,22 @@ func validateSubnets(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func launchInstance(ctx context.Context, ec2Svc *ec2.Client, subnetID string, instanceProfileName *string) (string, error) {
-	regionalAMI, err := findUbuntuAMI(ctx, ec2Svc)
+func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []string, profileArn *string) ([]string, error) {
+	var instanceIds []string
+	for _, subnet := range subnets {
+		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, profileArn)
+		if err != nil {
+			return nil, fmt.Errorf("❌ Failed to launch instances in subnet %s: %v", subnet, err)
+		}
+
+		instanceIds = append(instanceIds, instanceId)
+	}
+
+	return instanceIds, nil
+}
+
+func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID string, instanceProfileName *string) (string, error) {
+	regionalAMI, err := findUbuntuAMI(ctx, ec2Client)
 	if err != nil {
 		return "", err
 	}
@@ -275,7 +293,7 @@ func launchInstance(ctx context.Context, ec2Svc *ec2.Client, subnetID string, in
 
 	var result *ec2.RunInstancesOutput
 	err = wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 10*time.Second, false, func(ctx context.Context) (done bool, err error) {
-		result, err = ec2Svc.RunInstances(ctx, input)
+		result, err = ec2Client.RunInstances(ctx, input)
 
 		if err != nil {
 			if strings.Contains(err.Error(), "Invalid IAM Instance Profile ARN") {
