@@ -1,0 +1,27 @@
+{
+    "folders": [
+        { "path": "." },
+        { "path": "gitpod-network-check" , "name": "gitpod-network-check" },
+    ],
+    "settings": {
+        "[go]": {
+            "editor.formatOnSave": true
+        },
+        "[tf]": {
+            "editor.insertSpaces": true,
+            "editor.tabSize": 2
+        },
+        "go.formatTool": "goimports",
+        "go.useLanguageServer": true,
+        "workspace.supportMultiRootWorkspace": true,
+        "launch": {},
+        "files.exclude": {
+            "**/.git": true
+        },
+        "go.lintTool": "golangci-lint",
+        "gopls": {
+            "allowModfileModifications": true
+        },
+    }
+}
+
