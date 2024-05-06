@@ -139,15 +139,33 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 	},
 }
 
+type vpcEndpointsMap struct {
+	Endpoint string
+	Required bool
+}
+
 // the ssm-agent requires that ec2messages, ssm and ssmmessages are available
 // we check the endpoints here so that if we cannot send commands to the ec2 instance
 // in a private setup we know why
 func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 	log.Infof("ℹ️  Checking prerequisites")
-	vpcEndpoints := []string{
-		fmt.Sprintf("com.amazonaws.%s.ec2messages", networkConfig.AwsRegion),
-		fmt.Sprintf("com.amazonaws.%s.ssm", networkConfig.AwsRegion),
-		fmt.Sprintf("com.amazonaws.%s.ssmmessages", networkConfig.AwsRegion),
+	vpcEndpoints := []vpcEndpointsMap{
+		{
+			Endpoint: fmt.Sprintf("com.amazonaws.%s.ec2messages", networkConfig.AwsRegion),
+			Required: false,
+		},
+		{
+			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssm", networkConfig.AwsRegion),
+			Required: false,
+		},
+		{
+			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssmmessages", networkConfig.AwsRegion),
+			Required: false,
+		},
+		{
+			Endpoint: fmt.Sprintf("com.amazonaws.%s.execute-api", networkConfig.AwsRegion),
+			Required: true,
+		},
 	}
 
 	for _, endpoint := range vpcEndpoints {
@@ -155,7 +173,7 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 			Filters: []types.Filter{
 				{
 					Name:   aws.String("service-name"),
-					Values: []string{endpoint},
+					Values: []string{endpoint.Endpoint},
 				},
 			},
 		})
@@ -165,9 +183,12 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		}
 
 		if len(response.VpcEndpoints) == 0 {
-			log.Infof("ℹ️  VPC endpoint %s is not configured", endpoint)
+			if endpoint.Required {
+				return fmt.Errorf("❌ VPC endpoint %s not configured: %w", endpoint.Endpoint, err)
+			}
+			log.Infof("ℹ️  VPC endpoint %s is not configured", endpoint.Endpoint)
 		} else {
-			log.Infof("✅ VPC endpoint %s is configured", endpoint)
+			log.Infof("✅ VPC endpoint %s is configured", endpoint.Endpoint)
 		}
 	}
 
