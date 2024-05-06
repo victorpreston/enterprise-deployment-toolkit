@@ -86,8 +86,6 @@ func init() {
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.AwsRegion, "region", "eu-central-1", "AWS Region to create the cell in")
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.MainSubnets, "main-subnets", []string{}, "List of main subnets")
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.PodSubnets, "pod-subnets", []string{}, "List of pod subnets")
-	networkCheckCmd.PersistentFlags().BoolVarP(&networkConfig.Destroy, "rm", "r", false, "Setting this will cleanup the stack at the end of diagnosis")
-	networkCheckCmd.PersistentFlags().BoolVarP(&networkConfig.Cleanup, "cleanup", "c", false, "Cleanup an existing stack")
 	bindFlags(networkCheckCmd, v)
 }
 
