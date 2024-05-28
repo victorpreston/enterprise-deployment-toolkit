@@ -109,6 +109,8 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			return fmt.Errorf("❌ could not connect to SSM: %w", err)
 		}
 
+		time.Sleep(time.Minute)
+
 		log.Infof("ℹ️  Checking if the required AWS Services can be reached from the ec2 instances")
 		serviceEndpoints := map[string]string{
 			"SSM":                   fmt.Sprintf("https://ssm.%s.amazonaws.com", networkConfig.AwsRegion),
