@@ -4,7 +4,7 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
 ## Prerequisites
 
-1. Download the `gitpod-network-checker` binary using:
+1. Download the `gitpod-network-check` binary using:
    ```
    curl -L "https://github.com/gitpod-io/enterprise-deployment-toolkit/releases/download/v0.1.0/enterprise-deployment-toolkit_$(uname -s -m | awk '{print $1"_"$2}').tar.gz" | tar -xz
    ```
@@ -13,12 +13,12 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
    Try running the command with help flag, to see if it downloaded properly:
    ```
-   ./gitpod-network-checker --help
+   ./gitpod-network-check --help
    ```
 
 2. Set up AWS credentials
    
-   `gitpod-network-checker` needs access to the AWS account you are planning to use to deploy Gitpod in. Much like AWS CLI, `gitpod-network-checker` uses the available AWS profile in your terminal to authenticate against the account. This means that you can rely on any locally available [AWS profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) or just set the right environment variables in your terminal for the CLI to use:
+   `gitpod-network-check` needs access to the AWS account you are planning to use to deploy Gitpod in. Much like AWS CLI, `gitpod-network-check` uses the available AWS profile in your terminal to authenticate against the account. This means that you can rely on any locally available [AWS profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) or just set the right environment variables in your terminal for the CLI to use:
    ```
    export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
    export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
@@ -42,10 +42,10 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
 2. Run the network diagnosis
 
-   To start the diagnosis, the the command: `./gitpod-network-checker diagnose`
+   To start the diagnosis, the the command: `./gitpod-network-check diagnose`
 
    ```
-   ./gitpod-network-checker diagnose
+   ./gitpod-network-check diagnose
    INFO[0000] ✅ Main Subnets are valid
    INFO[0000] ✅ Pod Subnets are valid
    INFO[0000] ℹ️  Checking prerequisites
