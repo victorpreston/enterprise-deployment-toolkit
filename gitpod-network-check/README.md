@@ -6,7 +6,7 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
 1. Download the `gitpod-network-check` binary using:
    ```
-   curl -L "https://github.com/gitpod-io/enterprise-deployment-toolkit/releases/download/v0.1.1/enterprise-deployment-toolkit_$(uname -s -m | awk '{print $1"_"$2}').tar.gz" | tar -xz
+   curl -L "https://github.com/gitpod-io/enterprise-deployment-toolkit/releases/download/v0.1.2/enterprise-deployment-toolkit_$(uname -s -m | awk '{print $1"_"$2}').tar.gz" | tar -xz
    ```
 
    You can also download and untar the binary directly from the Github releases page [here](https://github.com/gitpod-io/enterprise-deployment-toolkit/releases/latest)

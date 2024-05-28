@@ -101,7 +101,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got ready: %v", err)
 		}
-		log.Infof("✅ EC2 Instances are now running successfully")
+		log.Info("✅ EC2 Instances are now running successfully")
 
 		log.Infof("ℹ️  Connecting to SSM...")
 		err = ensureSessionManagerIsUp(cmd.Context(), ssmClient)
@@ -268,7 +268,12 @@ func validateSubnets(cmd *cobra.Command, args []string) error {
 func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []string, profileArn *string) ([]string, error) {
 	var instanceIds []string
 	for _, subnet := range subnets {
-		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, profileArn)
+		secGroup, err := createSecurityGroups(ctx, ec2Client, subnet)
+		if err != nil {
+			return nil, fmt.Errorf("❌ failed to create security group: %v", err)
+		}
+		SecurityGroups = append(SecurityGroups, secGroup)
+		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, secGroup, profileArn)
 		if err != nil {
 			return nil, fmt.Errorf("❌ Failed to launch instances in subnet %s: %v", subnet, err)
 		}
@@ -279,7 +284,7 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 	return instanceIds, nil
 }
 
-func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID string, instanceProfileName *string) (string, error) {
+func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID, secGroupId string, instanceProfileName *string) (string, error) {
 	regionalAMI, err := findUbuntuAMI(ctx, ec2Client)
 	if err != nil {
 		return "", err
@@ -295,18 +300,13 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
 
 	input := &ec2.RunInstancesInput{
-		ImageId:      aws.String(regionalAMI), // Example AMI ID, replace with an actual one
-		InstanceType: types.InstanceTypeT2Micro,
-		MaxCount:     aws.Int32(1),
-		MinCount:     aws.Int32(1),
-		UserData:     &userDataEncoded,
-		NetworkInterfaces: []types.InstanceNetworkInterfaceSpecification{
-			{
-				DeviceIndex:              aws.Int32(0), // Primary network interface
-				SubnetId:                 aws.String(subnetID),
-				AssociatePublicIpAddress: aws.Bool(true),
-			},
-		},
+		ImageId:          aws.String(regionalAMI), // Example AMI ID, replace with an actual one
+		InstanceType:     types.InstanceTypeT2Micro,
+		MaxCount:         aws.Int32(1),
+		MinCount:         aws.Int32(1),
+		UserData:         &userDataEncoded,
+		SecurityGroupIds: []string{secGroupId},
+		SubnetId:         aws.String(subnetID),
 		IamInstanceProfile: &types.IamInstanceProfileSpecification{
 			Arn: instanceProfileName,
 		},
@@ -426,6 +426,64 @@ func fetchResultsForInstance(ctx context.Context, svc *ssm.Client, instanceId, c
 	})
 }
 
+func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string) (string, error) {
+	// Describe the subnet to find the VPC ID
+	describeSubnetsInput := &ec2.DescribeSubnetsInput{
+		SubnetIds: []string{subnetID},
+	}
+
+	describeSubnetsOutput, err := svc.DescribeSubnets(ctx, describeSubnetsInput)
+	if err != nil {
+		return "", fmt.Errorf("Failed to describe subnet: %v", err)
+	}
+
+	if len(describeSubnetsOutput.Subnets) == 0 {
+		return "", fmt.Errorf("No subnets found with ID: %s", subnetID)
+	}
+
+	vpcID := describeSubnetsOutput.Subnets[0].VpcId
+
+	// Create the security group
+	createSGInput := &ec2.CreateSecurityGroupInput{
+		Description: aws.String("EC2 security group allowing all HTTPS outgoing traffic"),
+		GroupName:   aws.String(fmt.Sprintf("EC2-security-group-nc-%s", subnetID)),
+		VpcId:       vpcID,
+	}
+
+	createSGOutput, err := svc.CreateSecurityGroup(ctx, createSGInput)
+	if err != nil {
+		log.Fatalf("Failed to create security group: %v", err)
+	}
+
+	sgID := createSGOutput.GroupId
+	log.Infof("ℹ️ Created security group with ID: %s", *sgID)
+
+	// Authorize HTTPS outbound traffic
+	authorizeEgressInput := &ec2.AuthorizeSecurityGroupEgressInput{
+		GroupId: sgID,
+		IpPermissions: []types.IpPermission{
+			{
+				IpProtocol: aws.String("tcp"),
+				FromPort:   aws.Int32(443),
+				ToPort:     aws.Int32(443),
+				IpRanges: []types.IpRange{
+					{
+						CidrIp:      aws.String("0.0.0.0/0"),
+						Description: aws.String("Allow all outbound HTTPS traffic"),
+					},
+				},
+			},
+		},
+	}
+
+	_, err = svc.AuthorizeSecurityGroupEgress(ctx, authorizeEgressInput)
+	if err != nil {
+		log.Fatalf("Failed to authorize security group egress: %v", err)
+	}
+
+	return *sgID, nil
+}
+
 func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 	if len(InstanceIds) > 0 {
 		_, err := svc.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
@@ -442,11 +500,10 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 				log.WithError(err).WithField("rolename", role).Warnf("Failed to cleanup role, please cleanup manually")
 			}
 
-			iamsvc.RemoveRoleFromInstanceProfile(ctx, &iam.RemoveRoleFromInstanceProfileInput{
+			_, err = iamsvc.RemoveRoleFromInstanceProfile(ctx, &iam.RemoveRoleFromInstanceProfileInput{
 				RoleName:            aws.String(role),
 				InstanceProfileName: aws.String(InstanceProfile),
 			})
-
 			if err != nil {
 				log.WithError(err).WithField("roleName", role).WithField("profileName", InstanceProfile).Warnf("Failed to remove role from instance profile")
 			}
@@ -464,6 +521,24 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 		if err != nil {
 			log.WithError(err).WithField("instanceProfile", InstanceProfile).Warnf("Failed to clean up instance profile, please cleanup manually")
 		}
+	}
+
+	log.Info("Cleaning up: Waiting for 1 minute so network interfaces are deleted")
+	time.Sleep(time.Minute)
+
+	if len(SecurityGroups) > 0 {
+		for _, sg := range SecurityGroups {
+			deleteSGInput := &ec2.DeleteSecurityGroupInput{
+				GroupId: aws.String(sg),
+			}
+
+			_, err := svc.DeleteSecurityGroup(ctx, deleteSGInput)
+			if err != nil {
+				log.WithError(err).WithField("securityGroup", sg).Warnf("Failed to clean up security group, please cleanup manually")
+			}
+
+		}
+
 	}
 }
 
