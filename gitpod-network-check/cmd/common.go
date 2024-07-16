@@ -48,10 +48,14 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 		})
 		if err != nil {
 			log.WithError(err).Warn("Failed to list instances, please cleanup manually")
+		} else if len(instances.Reservations) == 0 {
+			log.Info("No instances found.")
 		}
 
-		for _, i := range instances.Reservations[0].Instances {
-			InstanceIds = append(InstanceIds, *i.InstanceId)
+		for _, r := range instances.Reservations {
+			for _, i := range r.Instances {
+				InstanceIds = append(InstanceIds, *i.InstanceId)
+			}
 		}
 	}
 
@@ -72,6 +76,8 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 		})
 		if err != nil {
 			log.WithError(err).Warn("Failed to list roles, please cleanup manually")
+		} else if len(roles.Roles) == 0 {
+			log.Info("No roles found.")
 		}
 
 		for _, role := range roles.Roles {
@@ -139,6 +145,8 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 
 		if err != nil {
 			log.WithError(err).Error("Failed to list security groups, please cleanup manually")
+		} else if len(securityGroups.SecurityGroups) == 0 {
+			log.Info("No security groups found.")
 		}
 
 		for _, sg := range securityGroups.SecurityGroups {

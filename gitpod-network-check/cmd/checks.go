@@ -302,6 +302,17 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 		IamInstanceProfile: &types.IamInstanceProfileSpecification{
 			Arn: instanceProfileName,
 		},
+		TagSpecifications: []types.TagSpecification{
+			{
+				ResourceType: types.ResourceTypeInstance,
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("gitpod.io/network-check"),
+						Value: aws.String("true"),
+					},
+				},
+			},
+		},
 	}
 
 	var result *ec2.RunInstancesOutput
@@ -440,6 +451,17 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 		Description: aws.String("EC2 security group allowing all HTTPS outgoing traffic"),
 		GroupName:   aws.String(fmt.Sprintf("EC2-security-group-nc-%s", subnetID)),
 		VpcId:       vpcID,
+		TagSpecifications: []types.TagSpecification{
+			{
+				ResourceType: types.ResourceTypeInstance,
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("gitpod.io/network-check"),
+						Value: aws.String("true"),
+					},
+				},
+			},
+		},
 	}
 
 	createSGOutput, err := svc.CreateSecurityGroup(ctx, createSGInput)
