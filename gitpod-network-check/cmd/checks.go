@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -54,6 +55,13 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			return fmt.Errorf("❌ failed to create instance profile: %v", err)
 		}
 		InstanceProfile = aws.ToString(instanceProfile.InstanceProfileName)
+
+		allSubnets := slices.Concat(networkConfig.MainSubnets, networkConfig.PodSubnets)
+		slices.Sort(allSubnets)
+		distinctSubnets := slices.Compact(allSubnets)
+		if len(distinctSubnets) < len(allSubnets) {
+			log.Info("ℹ️  Found duplicate subnets. We'll test each subnet only once, starting with main.")
+		}
 
 		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
 		mainInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.MainSubnets, instanceProfile.Arn)
@@ -247,6 +255,10 @@ func validateSubnets(cmd *cobra.Command, args []string) error {
 func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []string, profileArn *string) ([]string, error) {
 	var instanceIds []string
 	for _, subnet := range subnets {
+		if _, ok := Subnets[subnet]; ok {
+			log.Warnf("Subnet '%v' was already launched, skipping", subnet)
+			continue
+		}
 		secGroup, err := createSecurityGroups(ctx, ec2Client, subnet)
 		if err != nil {
 			return nil, fmt.Errorf("❌ failed to create security group for subnet '%v': %v", subnet, err)
@@ -258,6 +270,7 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 		}
 
 		instanceIds = append(instanceIds, instanceId)
+		Subnets[subnet] = true
 	}
 
 	return instanceIds, nil
