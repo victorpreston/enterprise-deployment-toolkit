@@ -453,7 +453,7 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 		VpcId:       vpcID,
 		TagSpecifications: []types.TagSpecification{
 			{
-				ResourceType: types.ResourceTypeInstance,
+				ResourceType: types.ResourceTypeSecurityGroup,
 				Tags: []types.Tag{
 					{
 						Key:   aws.String("gitpod.io/network-check"),
