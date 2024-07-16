@@ -60,6 +60,9 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 	}
 
 	if len(InstanceIds) > 0 {
+		log.Info("Cleaning up: Waiting for 1 minute so network interfaces are deleted")
+		time.Sleep(time.Minute)
+
 		_, err := svc.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
 			InstanceIds: InstanceIds,
 		})
@@ -129,9 +132,6 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 
 		log.Info("✅ Instance profile deleted")
 	}
-
-	log.Info("Cleaning up: Waiting for 1 minute so network interfaces are deleted")
-	time.Sleep(time.Minute)
 
 	if len(SecurityGroups) == 0 {
 		securityGroups, err := svc.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{
