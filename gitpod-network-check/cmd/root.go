@@ -126,5 +126,6 @@ func readConfigFile() *viper.Viper {
 
 func Execute() error {
 	networkCheckCmd.AddCommand(checkCommand)
+	networkCheckCmd.AddCommand(cleanCommand)
 	return networkCheckCmd.Execute()
 }

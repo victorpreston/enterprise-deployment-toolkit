@@ -17,7 +17,7 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    ```
 
 2. Set up AWS credentials
-   
+
    `gitpod-network-check` needs access to the AWS account you are planning to use to deploy Gitpod in. Much like AWS CLI, `gitpod-network-check` uses the available AWS profile in your terminal to authenticate against the account. This means that you can rely on any locally available [AWS profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) or just set the right environment variables in your terminal for the CLI to use:
    ```
    export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
@@ -44,7 +44,7 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
    To start the diagnosis, the the command: `./gitpod-network-check diagnose`
 
-   ```
+   ```console
    ./gitpod-network-check diagnose
    INFO[0000] ✅ Main Subnets are valid
    INFO[0000] ✅ Pod Subnets are valid
@@ -77,3 +77,18 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    INFO[0191] ✅ S3 is available
    ```
 
+3. Clean up after network diagnosis
+
+   Dianosis is designed to do clean-up before it finishes. However, if the process terminates unexpectedly, you may clean-up AWS resources it creates like so:
+
+   ```console
+   ./gitpod-network-check clean
+   INFO[0000] ✅ Main Subnets are valid
+   INFO[0000] ✅ Pod Subnets are valid
+   INFO[0000] ✅ Instances terminated
+   INFO[0000] Cleaning up: Waiting for 2 minutes so network interfaces are deleted
+   INFO[0121] ✅ Role 'GitpodNetworkCheck' deleted
+   INFO[0121] ✅ Instance profile deleted
+   INFO[0122] ✅ Security group 'sg-0a6119dcb6a564fc1' deleted
+   INFO[0122] ✅ Security group 'sg-07373362953212e54' deleted
+   ```

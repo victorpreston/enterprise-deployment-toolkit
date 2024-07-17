@@ -5,12 +5,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -21,28 +21,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/util/wait"
-)
-
-const gitpodRoleName = "GitpodNetworkCheck"
-const gitpodInstanceProfile = "GitpodNetworkCheck"
-
-var networkCheckTag = []iam_types.Tag{
-	{
-		Key:   aws.String("gitpod.io/network-check"),
-		Value: aws.String("true"),
-	},
-}
-
-func initAwsConfig(ctx context.Context, region string) (aws.Config, error) {
-	return config.LoadDefaultConfig(ctx, config.WithRegion(region))
-}
-
-// this will be useful when we are cleaning up things at the end
-var (
-	InstanceIds     []string
-	SecurityGroups  []string
-	Roles           []string
-	InstanceProfile string
 )
 
 var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
@@ -71,12 +49,20 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			return fmt.Errorf("❌ error creating IAM role and attaching policy: %v", err)
 		}
 		Roles = append(Roles, *role.RoleName)
+		log.Info("✅ IAM role created and policy attached")
 
 		instanceProfile, err := createInstanceProfileAndAttachRole(cmd.Context(), iamClient, *role.RoleName)
 		if err != nil {
 			return fmt.Errorf("❌ failed to create instance profile: %v", err)
 		}
 		InstanceProfile = aws.ToString(instanceProfile.InstanceProfileName)
+
+		allSubnets := slices.Concat(networkConfig.MainSubnets, networkConfig.PodSubnets)
+		slices.Sort(allSubnets)
+		distinctSubnets := slices.Compact(allSubnets)
+		if len(distinctSubnets) < len(allSubnets) {
+			log.Infof("ℹ️  Found duplicate subnets. We'll test each subnet '%v' only once.", distinctSubnets)
+		}
 
 		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
 		mainInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.MainSubnets, instanceProfile.Arn)
@@ -270,9 +256,13 @@ func validateSubnets(cmd *cobra.Command, args []string) error {
 func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []string, profileArn *string) ([]string, error) {
 	var instanceIds []string
 	for _, subnet := range subnets {
+		if _, ok := Subnets[subnet]; ok {
+			log.Warnf("An EC2 instance was already created for subnet '%v', skipping", subnet)
+			continue
+		}
 		secGroup, err := createSecurityGroups(ctx, ec2Client, subnet)
 		if err != nil {
-			return nil, fmt.Errorf("❌ failed to create security group: %v", err)
+			return nil, fmt.Errorf("❌ failed to create security group for subnet '%v': %v", subnet, err)
 		}
 		SecurityGroups = append(SecurityGroups, secGroup)
 		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, secGroup, profileArn)
@@ -281,6 +271,10 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 		}
 
 		instanceIds = append(instanceIds, instanceId)
+		if Subnets == nil {
+			Subnets = make(map[string]bool)
+		}
+		Subnets[subnet] = true
 	}
 
 	return instanceIds, nil
@@ -311,6 +305,17 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 		SubnetId:         aws.String(subnetID),
 		IamInstanceProfile: &types.IamInstanceProfileSpecification{
 			Arn: instanceProfileName,
+		},
+		TagSpecifications: []types.TagSpecification{
+			{
+				ResourceType: types.ResourceTypeInstance,
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("gitpod.io/network-check"),
+						Value: aws.String("true"),
+					},
+				},
+			},
 		},
 	}
 
@@ -450,6 +455,17 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 		Description: aws.String("EC2 security group allowing all HTTPS outgoing traffic"),
 		GroupName:   aws.String(fmt.Sprintf("EC2-security-group-nc-%s", subnetID)),
 		VpcId:       vpcID,
+		TagSpecifications: []types.TagSpecification{
+			{
+				ResourceType: types.ResourceTypeSecurityGroup,
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("gitpod.io/network-check"),
+						Value: aws.String("true"),
+					},
+				},
+			},
+		},
 	}
 
 	createSGOutput, err := svc.CreateSecurityGroup(ctx, createSGInput)
@@ -458,7 +474,7 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 	}
 
 	sgID := createSGOutput.GroupId
-	log.Infof("ℹ️ Created security group with ID: %s", *sgID)
+	log.Infof("ℹ️  Created security group with ID: %s", *sgID)
 
 	// Authorize HTTPS outbound traffic
 	authorizeEgressInput := &ec2.AuthorizeSecurityGroupEgressInput{
@@ -484,64 +500,6 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 	}
 
 	return *sgID, nil
-}
-
-func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
-	if len(InstanceIds) > 0 {
-		_, err := svc.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
-			InstanceIds: InstanceIds,
-		})
-		if err != nil {
-			log.WithError(err).WithField("instanceIds", InstanceIds).Warnf("Failed to cleanup instances, please cleanup manually")
-		}
-	}
-	if len(Roles) > 0 {
-		for _, role := range Roles {
-			_, err := iamsvc.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"), RoleName: aws.String(role)})
-			if err != nil {
-				log.WithError(err).WithField("rolename", role).Warnf("Failed to cleanup role, please cleanup manually")
-			}
-
-			_, err = iamsvc.RemoveRoleFromInstanceProfile(ctx, &iam.RemoveRoleFromInstanceProfileInput{
-				RoleName:            aws.String(role),
-				InstanceProfileName: aws.String(InstanceProfile),
-			})
-			if err != nil {
-				log.WithError(err).WithField("roleName", role).WithField("profileName", InstanceProfile).Warnf("Failed to remove role from instance profile")
-			}
-
-			_, err = iamsvc.DeleteRole(ctx, &iam.DeleteRoleInput{RoleName: aws.String(role)})
-			if err != nil {
-				log.WithError(err).WithField("rolename", role).Warnf("Failed to cleanup role, please cleanup manaullay")
-			}
-		}
-
-		_, err := iamsvc.DeleteInstanceProfile(ctx, &iam.DeleteInstanceProfileInput{
-			InstanceProfileName: aws.String(InstanceProfile),
-		})
-
-		if err != nil {
-			log.WithError(err).WithField("instanceProfile", InstanceProfile).Warnf("Failed to clean up instance profile, please cleanup manually")
-		}
-	}
-
-	log.Info("Cleaning up: Waiting for 1 minute so network interfaces are deleted")
-	time.Sleep(time.Minute)
-
-	if len(SecurityGroups) > 0 {
-		for _, sg := range SecurityGroups {
-			deleteSGInput := &ec2.DeleteSecurityGroupInput{
-				GroupId: aws.String(sg),
-			}
-
-			_, err := svc.DeleteSecurityGroup(ctx, deleteSGInput)
-			if err != nil {
-				log.WithError(err).WithField("securityGroup", sg).Warnf("Failed to clean up security group, please cleanup manually")
-			}
-
-		}
-
-	}
 }
 
 func createIAMRoleAndAttachPolicy(ctx context.Context, svc *iam.Client) (*iam_types.Role, error) {
