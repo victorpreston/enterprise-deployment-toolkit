@@ -44,6 +44,10 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 					Name:   aws.String("tag:gitpod.io/network-check"),
 					Values: []string{"true"},
 				},
+				{
+					Name:   aws.String("instance-state-name"),
+					Values: []string{"pending", "running", "shutting-down", "stopping", "stopped"},
+				},
 			},
 		})
 		if err != nil {
