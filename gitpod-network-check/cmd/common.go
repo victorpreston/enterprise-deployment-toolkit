@@ -64,8 +64,8 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 	}
 
 	if len(InstanceIds) > 0 {
-		log.Info("Cleaning up: Waiting for 1 minute so network interfaces are deleted")
-		time.Sleep(time.Minute)
+		log.Info("Cleaning up: Waiting for 2 minutes so network interfaces are deleted")
+		time.Sleep(2 * time.Minute)
 
 		_, err := svc.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
 			InstanceIds: InstanceIds,
@@ -98,6 +98,9 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 					}
 				}
 			}
+		}
+		if len(Roles) == 0 {
+			log.Info("No roles found.")
 		}
 	}
 
