@@ -270,6 +270,9 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 		}
 
 		instanceIds = append(instanceIds, instanceId)
+		if Subnets == nil {
+			Subnets = make(map[string]bool)
+		}
 		Subnets[subnet] = true
 	}
 
