@@ -49,6 +49,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			return fmt.Errorf("❌ error creating IAM role and attaching policy: %v", err)
 		}
 		Roles = append(Roles, *role.RoleName)
+		log.Info("✅ IAM role created and policy attached")
 
 		instanceProfile, err := createInstanceProfileAndAttachRole(cmd.Context(), iamClient, *role.RoleName)
 		if err != nil {
@@ -60,7 +61,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		slices.Sort(allSubnets)
 		distinctSubnets := slices.Compact(allSubnets)
 		if len(distinctSubnets) < len(allSubnets) {
-			log.Info("ℹ️  Found duplicate subnets. We'll test each subnet only once, starting with main.")
+			log.Infof("ℹ️  Found duplicate subnets. We'll test each subnet '%v' only once.", distinctSubnets)
 		}
 
 		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
@@ -256,7 +257,7 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 	var instanceIds []string
 	for _, subnet := range subnets {
 		if _, ok := Subnets[subnet]; ok {
-			log.Warnf("Subnet '%v' was already launched, skipping", subnet)
+			log.Warnf("An EC2 instance was already created for subnet '%v', skipping", subnet)
 			continue
 		}
 		secGroup, err := createSecurityGroups(ctx, ec2Client, subnet)
