@@ -470,7 +470,7 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 	}
 
 	sgID := createSGOutput.GroupId
-	log.Infof("ℹ️ Created security group with ID: %s", *sgID)
+	log.Infof("ℹ️  Created security group with ID: %s", *sgID)
 
 	// Authorize HTTPS outbound traffic
 	authorizeEgressInput := &ec2.AuthorizeSecurityGroupEgressInput{
