@@ -74,28 +74,27 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 	}
 
 	if len(Roles) == 0 {
-		roles, err := iamsvc.ListRoles(ctx, &iam.ListRolesInput{
-			PathPrefix: aws.String("/GitpodNetworkCheck"),
-		})
-		if err != nil {
-			log.WithError(err).Warn("Failed to list roles, please cleanup manually")
-		} else if len(roles.Roles) == 0 {
-			log.Info("No roles found.")
-		}
-
-		for _, role := range roles.Roles {
-			if role.RoleName == nil {
-				continue
+		paginator := iam.NewListInstanceProfilesPaginator(iamsvc, &iam.ListInstanceProfilesInput{})
+		for paginator.HasMorePages() {
+			output, err := paginator.NextPage(ctx)
+			if err != nil {
+				log.WithError(err).Warn("Failed to list roles, please cleanup manually")
+				break
 			}
 
-			if *role.RoleName == gitpodRoleName {
-				Roles = append(Roles, *role.RoleName)
+			for _, ip := range output.InstanceProfiles {
+				if *ip.InstanceProfileName == gitpodInstanceProfile {
+					{
+						InstanceProfile = *ip.InstanceProfileName
+						if len(ip.Roles) > 0 {
+							for _, role := range ip.Roles {
+								Roles = append(Roles, *role.RoleName)
+							}
+						}
+					}
+				}
 			}
 		}
-	}
-
-	if InstanceProfile == "" {
-		InstanceProfile = gitpodInstanceProfile
 	}
 
 	if len(Roles) > 0 {
