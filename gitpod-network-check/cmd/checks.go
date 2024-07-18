@@ -176,6 +176,11 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 			}
 			log.Infof("ℹ️  VPC endpoint %s is not configured", endpoint.Endpoint)
 		} else {
+			for _, e := range response.VpcEndpoints {
+				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled {
+					log.Errorf("❌ VPC endpoint '%s' has private DNS disabled, it must be enabled", *e.VpcEndpointId)
+				}
+			}
 			log.Infof("✅ VPC endpoint %s is configured", endpoint.Endpoint)
 		}
 	}
