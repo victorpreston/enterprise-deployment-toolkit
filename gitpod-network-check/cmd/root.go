@@ -22,6 +22,7 @@ type NetworkConfig struct {
 
 	MainSubnets []string
 	PodSubnets  []string
+	HttpsHosts  []string
 }
 
 var networkConfig = NetworkConfig{LogLevel: "INFO"}
@@ -86,6 +87,7 @@ func init() {
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.AwsRegion, "region", "eu-central-1", "AWS Region to create the cell in")
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.MainSubnets, "main-subnets", []string{}, "List of main subnets")
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.PodSubnets, "pod-subnets", []string{}, "List of pod subnets")
+	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
 	bindFlags(networkCheckCmd, v)
 }
 

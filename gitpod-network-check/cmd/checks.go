@@ -69,6 +69,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return err
 		}
+		log.Infof("ℹ️  Main EC2 instances: %v", mainInstanceIds)
 		InstanceIds = append(InstanceIds, mainInstanceIds...)
 
 		log.Infof("ℹ️  Launching EC2 instances in a Pod subnets")
@@ -76,6 +77,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return err
 		}
+		log.Infof("ℹ️  Pod EC2 instances: %v", podInstanceIds)
 		InstanceIds = append(InstanceIds, podInstanceIds...)
 
 		log.Infof("ℹ️  Waiting for EC2 instances to become ready (can take up to 2 minutes)")
@@ -117,11 +119,22 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		}
 		checkServicesAvailability(cmd.Context(), ssmClient, InstanceIds, serviceEndpoints)
 
+		log.Infof("ℹ️  Checking if certain AWS Services can be reached from ec2 instances in the main subnet")
 		serviceEndpointsForMain := map[string]string{
 			"S3":       fmt.Sprintf("https://s3.%s.amazonaws.com", networkConfig.AwsRegion),
 			"DynamoDB": fmt.Sprintf("https://dynamodb.%s.amazonaws.com", networkConfig.AwsRegion),
 		}
 		checkServicesAvailability(cmd.Context(), ssmClient, mainInstanceIds, serviceEndpointsForMain)
+
+		httpHosts := map[string]string{}
+		for _, v := range networkConfig.HttpsHosts {
+			host := strings.TrimSpace(v)
+			httpHosts[host] = fmt.Sprintf("https://%s", host)
+		}
+		if len(httpHosts) > 0 {
+			log.Infof("ℹ️  Checking if hosts can be reached with HTTPS from ec2 instances in the main subnets")
+		}
+		checkServicesAvailability(cmd.Context(), ssmClient, mainInstanceIds, httpHosts)
 
 		return nil
 	},
