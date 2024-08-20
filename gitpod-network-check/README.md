@@ -100,3 +100,74 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    INFO[0122] ✅ Security group 'sg-0a6119dcb6a564fc1' deleted
    INFO[0122] ✅ Security group 'sg-07373362953212e54' deleted
    ```
+
+## FAQ
+
+If the EC2 instances are timing out, or you cannot connect to them with Session Manager, be sure to add the following policies.
+
+For the ssm vpc endpoint, add the following policy:
+
+```json
+{
+   "Effect": "Allow",
+   "Action": [
+      "*"
+   ],
+   "Resource": [
+      "*"
+   ],
+   "Principal": {
+      "AWS": [
+         "*"
+      ]
+   },
+   "Condition": {
+      "ArnEquals": {
+         "aws:PrincipalArn": "arn:aws:iam::<aws-account-id>:role/GitpodNetworkCheck"
+      }
+   }
+},
+{
+   "Effect": "Allow",
+   "Action": [
+      "*"
+   ],
+   "Resource": [
+      "*"
+   ],
+   "Principal": {
+      "AWS": [
+         "*"
+      ]
+   },
+   "Condition": {
+      "StringEquals": {
+         "ec2:InstanceProfile": "arn:aws:iam::<aws-account-id>:instance-profile/GitpodNetworkCheck"
+      }
+   }
+}
+```
+
+For the ec2messages and ssmmessages vpc endpoints, add the following policy:
+
+```json
+{
+   "Effect": "Allow",
+   "Action": [
+      "*"
+   ],
+   "Resource": [
+      "*"
+   ],
+   "Principal": {
+      "AWS": [
+         "*"
+      ]
+   },
+   "Condition": {
+      "ArnEquals": {
+         "aws:PrincipalArn": "arn:aws:iam::<aws-account-id>:role/GitpodNetworkCheck"
+      }
+   }
+}
+```
