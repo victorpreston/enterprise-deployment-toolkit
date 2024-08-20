@@ -1,4 +1,5 @@
 log-level: debug # Options: debug, info, warning, error
 region: eu-central-1
-main-subnets: subnet-066f10c3118b91fbf, subnet-01354c88639f6ab5b, subnet-09a1e3e52d326a98c
-pod-subnets: subnet-0ee87ba9eb4eb392b, subnet-0ddc62bfffe224a43, subnet-090c0ae61faad3588
+main-subnets: subnet-0a195092eb78c7674, subnet-05db6651c2ef39639
+pod-subnets: subnet-00a5f0d10253fb33c, subnet-09f658fd789fc9b84
+https-hosts: accounts.google.com, github.com
