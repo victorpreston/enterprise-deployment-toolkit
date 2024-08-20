@@ -139,7 +139,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			if parsedUrl.Scheme == "" {
 				httpHosts[host] = fmt.Sprintf("https://%s", host)
 			} else if parsedUrl.Scheme == "https" {
-				httpHosts[host] = host
+				httpHosts[host] = parsedUrl.Host
 			} else {
 				log.Warnf("🚧 Unsupported scheme: %s, skipping test for %s", parsedUrl.Scheme, host)
 				continue
