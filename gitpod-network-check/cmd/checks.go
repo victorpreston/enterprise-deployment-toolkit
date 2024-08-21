@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -129,7 +130,20 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		httpHosts := map[string]string{}
 		for _, v := range networkConfig.HttpsHosts {
 			host := strings.TrimSpace(v)
-			httpHosts[host] = fmt.Sprintf("https://%s", host)
+			parsedUrl, err := url.Parse(host)
+			if err != nil {
+				log.Warnf("🚧 Invalid Host: %s, skipping due to error: %v", host, err)
+				continue
+			}
+
+			if parsedUrl.Scheme == "" {
+				httpHosts[host] = fmt.Sprintf("https://%s", host)
+			} else if parsedUrl.Scheme == "https" {
+				httpHosts[host] = parsedUrl.Host
+			} else {
+				log.Warnf("🚧 Unsupported scheme: %s, skipping test for %s", parsedUrl.Scheme, host)
+				continue
+			}
 		}
 		if len(httpHosts) > 0 {
 			log.Infof("ℹ️  Checking if hosts can be reached with HTTPS from ec2 instances in the main subnets")
