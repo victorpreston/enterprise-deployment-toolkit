@@ -51,14 +51,16 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 			},
 		})
 		if err != nil {
-			log.WithError(err).Warn("Failed to list instances, please cleanup manually")
+			log.WithError(err).Error("Failed to list instances, please cleanup instances manually")
 		} else if len(instances.Reservations) == 0 {
 			log.Info("No instances found.")
 		}
 
-		for _, r := range instances.Reservations {
-			for _, i := range r.Instances {
-				InstanceIds = append(InstanceIds, *i.InstanceId)
+		if instances != nil {
+			for _, r := range instances.Reservations {
+				for _, i := range r.Instances {
+					InstanceIds = append(InstanceIds, *i.InstanceId)
+				}
 			}
 		}
 	}
@@ -155,8 +157,10 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 			log.Info("No security groups found.")
 		}
 
-		for _, sg := range securityGroups.SecurityGroups {
-			SecurityGroups = append(SecurityGroups, *sg.GroupId)
+		if securityGroups != nil {
+			for _, sg := range securityGroups.SecurityGroups {
+				SecurityGroups = append(SecurityGroups, *sg.GroupId)
+			}
 		}
 	}
 
