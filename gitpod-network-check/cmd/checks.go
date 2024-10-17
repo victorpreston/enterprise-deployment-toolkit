@@ -297,7 +297,14 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 			return nil, fmt.Errorf("❌ failed to create security group for subnet '%v': %v", subnet, err)
 		}
 		SecurityGroups = append(SecurityGroups, secGroup)
-		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, secGroup, profileArn)
+
+		instanceType, err := getPreferredInstanceType(ctx, ec2Client)
+		if err != nil {
+			return nil, fmt.Errorf("❌ failed to get preferred instance type: %v", err)
+		}
+		log.Infof("ℹ️  Instance type %s shall be used", instanceType)
+
+		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, secGroup, profileArn, instanceType)
 		if err != nil {
 			return nil, fmt.Errorf("❌ Failed to launch instances in subnet %s: %v", subnet, err)
 		}
@@ -312,7 +319,7 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 	return instanceIds, nil
 }
 
-func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID, secGroupId string, instanceProfileName *string) (string, error) {
+func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID, secGroupId string, instanceProfileName *string, instanceType types.InstanceType) (string, error) {
 	regionalAMI, err := findUbuntuAMI(ctx, ec2Client)
 	if err != nil {
 		return "", err
@@ -326,12 +333,6 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 
 	// Encode user data in base64
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
-
-	instanceType, err := getPreferredInstanceType(ctx, ec2Client)
-	if err != nil {
-		return "", fmt.Errorf("❌ failed to get preferred instance type: %v", err)
-	}
-	log.Infof("ℹ️  Instance type %s shall be used", instanceType)
 
 	input := &ec2.RunInstancesInput{
 		ImageId:          aws.String(regionalAMI), // Example AMI ID, replace with an actual one
