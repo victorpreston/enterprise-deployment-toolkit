@@ -331,6 +331,7 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 	if err != nil {
 		return "", fmt.Errorf("❌ failed to get preferred instance type: %v", err)
 	}
+	log.Infof("ℹ️  Instance type %s shall be used", instanceType)
 
 	input := &ec2.RunInstancesInput{
 		ImageId:          aws.String(regionalAMI), // Example AMI ID, replace with an actual one
