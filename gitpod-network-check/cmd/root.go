@@ -89,6 +89,7 @@ func init() {
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.PodSubnets, "pod-subnets", []string{}, "List of pod subnets")
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
 	bindFlags(networkCheckCmd, v)
+	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, and hosts `%v`", networkConfig.AwsRegion, networkConfig.MainSubnets, networkConfig.PodSubnets, networkConfig.HttpsHosts)
 }
 
 func readConfigFile() *viper.Viper {

@@ -297,7 +297,14 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 			return nil, fmt.Errorf("❌ failed to create security group for subnet '%v': %v", subnet, err)
 		}
 		SecurityGroups = append(SecurityGroups, secGroup)
-		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, secGroup, profileArn)
+
+		instanceType, err := getPreferredInstanceType(ctx, ec2Client)
+		if err != nil {
+			return nil, fmt.Errorf("❌ failed to get preferred instance type: %v", err)
+		}
+		log.Infof("ℹ️  Instance type %s shall be used", instanceType)
+
+		instanceId, err := launchInstanceInSubnet(ctx, ec2Client, subnet, secGroup, profileArn, instanceType)
 		if err != nil {
 			return nil, fmt.Errorf("❌ Failed to launch instances in subnet %s: %v", subnet, err)
 		}
@@ -312,7 +319,7 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 	return instanceIds, nil
 }
 
-func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID, secGroupId string, instanceProfileName *string) (string, error) {
+func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID, secGroupId string, instanceProfileName *string, instanceType types.InstanceType) (string, error) {
 	regionalAMI, err := findUbuntuAMI(ctx, ec2Client)
 	if err != nil {
 		return "", err
@@ -329,7 +336,7 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 
 	input := &ec2.RunInstancesInput{
 		ImageId:          aws.String(regionalAMI), // Example AMI ID, replace with an actual one
-		InstanceType:     types.InstanceTypeT2Micro,
+		InstanceType:     instanceType,
 		MaxCount:         aws.Int32(1),
 		MinCount:         aws.Int32(1),
 		UserData:         &userDataEncoded,
@@ -587,4 +594,41 @@ func createInstanceProfileAndAttachRole(ctx context.Context, svc *iam.Client, ro
 	}
 
 	return instanceProfileOutput.InstanceProfile, nil
+}
+
+func getPreferredInstanceType(ctx context.Context, svc *ec2.Client) (types.InstanceType, error) {
+	instanceTypes := []types.InstanceType{
+		types.InstanceTypeT2Micro,
+		types.InstanceTypeT3aMicro,
+		types.InstanceTypeT3Micro,
+	}
+	for _, instanceType := range instanceTypes {
+		exists, err := instanceTypeExists(ctx, svc, instanceType)
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			return instanceType, nil
+		}
+	}
+	return "", fmt.Errorf("No preferred instance type available in region: %s", networkConfig.AwsRegion)
+}
+
+func instanceTypeExists(ctx context.Context, svc *ec2.Client, instanceType types.InstanceType) (bool, error) {
+	input := &ec2.DescribeInstanceTypeOfferingsInput{
+		Filters: []types.Filter{
+			{
+				Name:  aws.String("instance-type"),
+				Values: []string{string(instanceType)},
+			},
+		},
+		LocationType: types.LocationTypeRegion,
+	}
+
+	resp, err := svc.DescribeInstanceTypeOfferings(ctx, input)
+	if err != nil {
+		return false, err
+	}
+
+	return len(resp.InstanceTypeOfferings) > 0, nil
 }
