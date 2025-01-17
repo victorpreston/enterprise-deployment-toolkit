@@ -3,4 +3,5 @@ region: eu-central-1
 main-subnets: subnet-017c6a80f4879d851, subnet-0215744d52cd1c01f
 pod-subnets: subnet-00a118009d1d572a5, subnet-062288af00ba50d86
 https-hosts: accounts.google.com, https://github.com
-instance-ami: #ami id
+# put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
+instance-ami:

@@ -91,7 +91,6 @@ func init() {
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
 	bindFlags(networkCheckCmd, v)
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
-	bindFlags(networkCheckCmd, v)
 	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, and hosts `%v`", networkConfig.AwsRegion, networkConfig.MainSubnets, networkConfig.PodSubnets, networkConfig.HttpsHosts)
 }
 
