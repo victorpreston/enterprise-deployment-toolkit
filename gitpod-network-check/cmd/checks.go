@@ -320,9 +320,19 @@ func launchInstances(ctx context.Context, ec2Client *ec2.Client, subnets []strin
 }
 
 func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID, secGroupId string, instanceProfileName *string, instanceType types.InstanceType) (string, error) {
-	regionalAMI, err := findUbuntuAMI(ctx, ec2Client)
-	if err != nil {
-		return "", err
+	amiId := ""
+	if networkConfig.InstanceAMI != "" {
+		customAMIId, err := findCustomAMI(ctx, ec2Client, networkConfig.InstanceAMI)
+		if err != nil {
+			return "", err
+		}
+		amiId = customAMIId
+	} else {
+		regionalAMI, err := findUbuntuAMI(ctx, ec2Client)
+		if err != nil {
+			return "", err
+		}
+		amiId = regionalAMI
 	}
 
 	// Specify the user data script to install the SSM Agent
@@ -335,7 +345,7 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
 
 	input := &ec2.RunInstancesInput{
-		ImageId:          aws.String(regionalAMI), // Example AMI ID, replace with an actual one
+		ImageId:          aws.String(amiId), // Example AMI ID, replace with an actual one
 		InstanceType:     instanceType,
 		MaxCount:         aws.Int32(1),
 		MinCount:         aws.Int32(1),
@@ -359,7 +369,7 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 	}
 
 	var result *ec2.RunInstancesOutput
-	err = wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 10*time.Second, false, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 10*time.Second, false, func(ctx context.Context) (done bool, err error) {
 		result, err = ec2Client.RunInstances(ctx, input)
 
 		if err != nil {
@@ -382,6 +392,22 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 	}
 
 	return aws.ToString(result.Instances[0].InstanceId), nil
+}
+
+func findCustomAMI(ctx context.Context, client *ec2.Client, amiId string) (string, error) {
+	input := &ec2.DescribeImagesInput{
+		ImageIds: []string{amiId},
+	}
+
+	result, err := client.DescribeImages(ctx, input)
+	if err != nil {
+		return "", err
+	}
+	if len(result.Images) > 0 {
+		return *result.Images[0].ImageId, nil
+	}
+
+	return "", fmt.Errorf("no custom AMI found")
 }
 
 // findUbuntuAMI searches for the latest Ubuntu AMI in the region of the EC2 client.
@@ -618,7 +644,7 @@ func instanceTypeExists(ctx context.Context, svc *ec2.Client, instanceType types
 	input := &ec2.DescribeInstanceTypeOfferingsInput{
 		Filters: []types.Filter{
 			{
-				Name:  aws.String("instance-type"),
+				Name:   aws.String("instance-type"),
 				Values: []string{string(instanceType)},
 			},
 		},

@@ -43,6 +43,7 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    main-subnets: subnet-0554e84f033a64c56, subnet-08584621e7754e505, subnet-094c6fd68aea493b7
    pod-subnets: subnet-028d11dce93b8eefc, subnet-04ec8257d95c434b7,subnet-00a83550ce709f39c
    https-hosts: accounts.google.com, github.com
+   instance-ami: # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
    ```
 
 2. Run the network diagnosis
