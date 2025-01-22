@@ -46,6 +46,8 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    instance-ami: # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
    ```
 
+   note: if using a custom AMI, please ensure the [SSM agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/manually-install-ssm-agent-linux.html) and [curl](https://curl.se/) are both installed. We rely on SSM's [SendCommand](https://docs.aws.amazon.com/code-library/latest/ug/ssm_example_ssm_SendCommand_section.html) to test HTTPS connectivity.
+
 2. Run the network diagnosis
 
    To start the diagnosis, the the command: `./gitpod-network-check diagnose`
