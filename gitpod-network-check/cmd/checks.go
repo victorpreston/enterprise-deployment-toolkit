@@ -157,6 +157,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 type vpcEndpointsMap struct {
 	Endpoint string
 	Required bool
+	PrivateDnsRequired bool
 }
 
 // the ssm-agent requires that ec2messages, ssm and ssmmessages are available
@@ -168,18 +169,22 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.ec2messages", networkConfig.AwsRegion),
 			Required: false,
+			PrivateDnsRequired: false,
 		},
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssm", networkConfig.AwsRegion),
 			Required: false,
+			PrivateDnsRequired: false,
 		},
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssmmessages", networkConfig.AwsRegion),
 			Required: false,
+			PrivateDnsRequired: false,
 		},
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.execute-api", networkConfig.AwsRegion),
 			Required: true,
+			PrivateDnsRequired: true,
 		},
 	}
 
@@ -204,7 +209,7 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 			log.Infof("ℹ️  VPC endpoint %s is not configured", endpoint.Endpoint)
 		} else {
 			for _, e := range response.VpcEndpoints {
-				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled {
+				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled && endpoint.PrivateDnsRequired {
 					log.Errorf("❌ VPC endpoint '%s' has private DNS disabled, it must be enabled", *e.VpcEndpointId)
 				}
 			}
