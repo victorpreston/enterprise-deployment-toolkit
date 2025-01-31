@@ -1,12 +1,12 @@
 tasks:
-  buildProject:
+  goBuild:
     name: Build project
     command: cd gitpod-network-check && go build ./...
     triggeredBy:
       - manual
       - postEnvironmentStart
 
-  runTests:
+  goTest:
     name: Run tests
     command: cd gitpod-network-check && go test -v ./...
     triggeredBy:
