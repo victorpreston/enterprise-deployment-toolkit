@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"slices"
 	"sort"
@@ -156,7 +157,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 
 type vpcEndpointsMap struct {
 	Endpoint string
-	Required bool
+	PrivateDnsName string
 	PrivateDnsRequired bool
 }
 
@@ -168,22 +169,22 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 	vpcEndpoints := []vpcEndpointsMap{
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.ec2messages", networkConfig.AwsRegion),
-			Required: false,
+			PrivateDnsName: fmt.Sprintf("ec2messages.%s.amazonaws.com", networkConfig.AwsRegion),
 			PrivateDnsRequired: false,
 		},
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssm", networkConfig.AwsRegion),
-			Required: false,
+			PrivateDnsName: fmt.Sprintf("ssm.%s.amazonaws.com", networkConfig.AwsRegion),
 			PrivateDnsRequired: false,
 		},
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssmmessages", networkConfig.AwsRegion),
-			Required: false,
+			PrivateDnsName: fmt.Sprintf("ssmmessages.%s.amazonaws.com", networkConfig.AwsRegion),
 			PrivateDnsRequired: false,
 		},
 		{
 			Endpoint: fmt.Sprintf("com.amazonaws.%s.execute-api", networkConfig.AwsRegion),
-			Required: true,
+			PrivateDnsName: fmt.Sprintf("execute-api.%s.amazonaws.com", networkConfig.AwsRegion),
 			PrivateDnsRequired: true,
 		},
 	}
@@ -203,10 +204,15 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		}
 
 		if len(response.VpcEndpoints) == 0 {
-			if endpoint.Required {
-				return fmt.Errorf("❌ VPC endpoint %s not configured: %w", endpoint.Endpoint, err)
+			log.Infof("ℹ️  VPC endpoint %s is not configured, testing service connectivity...", endpoint.Endpoint)
+			_, err := TestServiceConnectivity(ctx, endpoint.PrivateDnsName, 5 * time.Second)
+			if err != nil {
+				log.Errorf("❌ Service %s connectivity test failed: %v\n", endpoint.PrivateDnsName, err)
+			} else if endpoint.PrivateDnsRequired {
+				log.Warnf("✅ Service %s has connectivity, ensure Private DNS is enabled 🙏", endpoint.PrivateDnsName)
+			} else if !endpoint.PrivateDnsRequired {
+				log.Infof("✅ Service %s has connectivity", endpoint.PrivateDnsName)
 			}
-			log.Infof("ℹ️  VPC endpoint %s is not configured", endpoint.Endpoint)
 		} else {
 			for _, e := range response.VpcEndpoints {
 				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled && endpoint.PrivateDnsRequired {
@@ -662,4 +668,33 @@ func instanceTypeExists(ctx context.Context, svc *ec2.Client, instanceType types
 	}
 
 	return len(resp.InstanceTypeOfferings) > 0, nil
+}
+
+// ConnectivityTestResult represents the results of DNS and network connectivity tests
+type ConnectivityTestResult struct {
+	IPAddresses    []string
+}
+
+// TestServiceConnectivity tests both DNS resolution and TCP connectivity given a hostname
+func TestServiceConnectivity(ctx context.Context, hostname string, timeout time.Duration) (*ConnectivityTestResult, error) {
+	result := &ConnectivityTestResult{}
+
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, hostname)
+	if err != nil {
+		return result, fmt.Errorf("DNS resolution failed: %w", err)
+	}
+	for _, ip := range ips {
+		result.IPAddresses = append(result.IPAddresses, ip.String())
+	}
+	if len(result.IPAddresses) == 0 {
+		return result, fmt.Errorf("no IP addresses found for hostname: %s", hostname)
+	}
+	dialer := net.Dialer{Timeout: timeout}
+	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:443", result.IPAddresses[0]))
+	if err != nil {
+		return result, fmt.Errorf("TCP connection failed: %w", err)
+	}
+	defer conn.Close()
+
+	return result, nil
 }
