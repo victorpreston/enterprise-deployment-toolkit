@@ -1,0 +1,14 @@
+tasks:
+  buildProject:
+    name: Build project
+    command: cd gitpod-network-check && go build ./...
+    triggeredBy:
+      - manual
+      - postEnvironmentStart
+
+  runTests:
+    name: Run tests
+    command: cd gitpod-network-check && go test -v ./...
+    triggeredBy:
+      - manual
+      - postEnvironmentStart
