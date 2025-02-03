@@ -5,4 +5,4 @@ pod-subnets: subnet-09704642a44a1ae9b, subnet-0fc43a731956656cd
 https-hosts: accounts.google.com, https://github.com
 # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
 instance-ami:
-api-endpoint: 6v268t83fd
+api-endpoint:
