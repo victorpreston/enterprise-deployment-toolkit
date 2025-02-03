@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"slices"
 	"sort"
@@ -65,6 +66,10 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			log.Infof("ℹ️  Found duplicate subnets. We'll test each subnet '%v' only once.", distinctSubnets)
 		}
 
+		if networkConfig.ApiEndpoint == "" {
+			return fmt.Errorf("❌ API endpoint is required")
+		}
+
 		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
 		mainInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.MainSubnets, instanceProfile.Arn)
 		if err != nil {
@@ -100,7 +105,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 
 		time.Sleep(time.Minute)
 
-		log.Infof("ℹ️  Checking if the required AWS Services can be reached from the ec2 instances")
+		log.Infof("ℹ️  Checking if the required AWS Services can be reached from the ec2 instances in the pod subnet")
 		serviceEndpoints := map[string]string{
 			"SSM":                   fmt.Sprintf("https://ssm.%s.amazonaws.com", networkConfig.AwsRegion),
 			"SSMmessages":           fmt.Sprintf("https://ssmmessages.%s.amazonaws.com", networkConfig.AwsRegion),
@@ -122,8 +127,9 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 
 		log.Infof("ℹ️  Checking if certain AWS Services can be reached from ec2 instances in the main subnet")
 		serviceEndpointsForMain := map[string]string{
-			"S3":       fmt.Sprintf("https://s3.%s.amazonaws.com", networkConfig.AwsRegion),
-			"DynamoDB": fmt.Sprintf("https://dynamodb.%s.amazonaws.com", networkConfig.AwsRegion),
+			"S3":         fmt.Sprintf("https://s3.%s.amazonaws.com", networkConfig.AwsRegion),
+			"DynamoDB":   fmt.Sprintf("https://dynamodb.%s.amazonaws.com", networkConfig.AwsRegion),
+			"ExecuteAPI": fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com", networkConfig.ApiEndpoint, networkConfig.AwsRegion),
 		}
 		checkServicesAvailability(cmd.Context(), ssmClient, mainInstanceIds, serviceEndpointsForMain)
 
@@ -155,8 +161,9 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 }
 
 type vpcEndpointsMap struct {
-	Endpoint string
-	Required bool
+	Endpoint           string
+	PrivateDnsName     string
+	PrivateDnsRequired bool
 }
 
 // the ssm-agent requires that ec2messages, ssm and ssmmessages are available
@@ -166,20 +173,24 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 	log.Infof("ℹ️  Checking prerequisites")
 	vpcEndpoints := []vpcEndpointsMap{
 		{
-			Endpoint: fmt.Sprintf("com.amazonaws.%s.ec2messages", networkConfig.AwsRegion),
-			Required: false,
+			Endpoint:           fmt.Sprintf("com.amazonaws.%s.ec2messages", networkConfig.AwsRegion),
+			PrivateDnsName:     fmt.Sprintf("ec2messages.%s.amazonaws.com", networkConfig.AwsRegion),
+			PrivateDnsRequired: false,
 		},
 		{
-			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssm", networkConfig.AwsRegion),
-			Required: false,
+			Endpoint:           fmt.Sprintf("com.amazonaws.%s.ssm", networkConfig.AwsRegion),
+			PrivateDnsName:     fmt.Sprintf("ssm.%s.amazonaws.com", networkConfig.AwsRegion),
+			PrivateDnsRequired: false,
 		},
 		{
-			Endpoint: fmt.Sprintf("com.amazonaws.%s.ssmmessages", networkConfig.AwsRegion),
-			Required: false,
+			Endpoint:           fmt.Sprintf("com.amazonaws.%s.ssmmessages", networkConfig.AwsRegion),
+			PrivateDnsName:     fmt.Sprintf("ssmmessages.%s.amazonaws.com", networkConfig.AwsRegion),
+			PrivateDnsRequired: false,
 		},
 		{
-			Endpoint: fmt.Sprintf("com.amazonaws.%s.execute-api", networkConfig.AwsRegion),
-			Required: true,
+			Endpoint:           fmt.Sprintf("com.amazonaws.%s.execute-api", networkConfig.AwsRegion),
+			PrivateDnsName:     fmt.Sprintf("execute-api.%s.amazonaws.com", networkConfig.AwsRegion),
+			PrivateDnsRequired: true,
 		},
 	}
 
@@ -198,13 +209,22 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		}
 
 		if len(response.VpcEndpoints) == 0 {
-			if endpoint.Required {
-				return fmt.Errorf("❌ VPC endpoint %s not configured: %w", endpoint.Endpoint, err)
+			if strings.Contains(endpoint.Endpoint, "execute-api") {
+				log.Infof("ℹ️  Deferring connectivity test for %s service until testing main subnet", endpoint.PrivateDnsName)
+				continue
 			}
-			log.Infof("ℹ️  VPC endpoint %s is not configured", endpoint.Endpoint)
+			log.Infof("ℹ️  VPC endpoint %s is not configured, testing service connectivity...", endpoint.Endpoint)
+			_, err := TestServiceConnectivity(ctx, endpoint.PrivateDnsName, 5*time.Second)
+			if err != nil {
+				log.Errorf("❌ Service %s connectivity test failed: %v\n", endpoint.PrivateDnsName, err)
+			} else if endpoint.PrivateDnsRequired {
+				log.Warnf("✅ Service %s has connectivity, ensure Private DNS is enabled 🙏", endpoint.PrivateDnsName)
+			} else if !endpoint.PrivateDnsRequired {
+				log.Infof("✅ Service %s has connectivity", endpoint.PrivateDnsName)
+			}
 		} else {
 			for _, e := range response.VpcEndpoints {
-				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled {
+				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled && endpoint.PrivateDnsRequired {
 					log.Errorf("❌ VPC endpoint '%s' has private DNS disabled, it must be enabled", *e.VpcEndpointId)
 				}
 			}
@@ -657,4 +677,33 @@ func instanceTypeExists(ctx context.Context, svc *ec2.Client, instanceType types
 	}
 
 	return len(resp.InstanceTypeOfferings) > 0, nil
+}
+
+// ConnectivityTestResult represents the results of DNS and network connectivity tests
+type ConnectivityTestResult struct {
+	IPAddresses []string
+}
+
+// TestServiceConnectivity tests both DNS resolution and TCP connectivity given a hostname
+func TestServiceConnectivity(ctx context.Context, hostname string, timeout time.Duration) (*ConnectivityTestResult, error) {
+	result := &ConnectivityTestResult{}
+
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, hostname)
+	if err != nil {
+		return result, fmt.Errorf("DNS resolution failed: %w", err)
+	}
+	for _, ip := range ips {
+		result.IPAddresses = append(result.IPAddresses, ip.String())
+	}
+	if len(result.IPAddresses) == 0 {
+		return result, fmt.Errorf("no IP addresses found for hostname: %s", hostname)
+	}
+	dialer := net.Dialer{Timeout: timeout}
+	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:443", result.IPAddresses[0]))
+	if err != nil {
+		return result, fmt.Errorf("TCP connection failed: %w", err)
+	}
+	defer conn.Close()
+
+	return result, nil
 }

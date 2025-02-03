@@ -1,0 +1,21 @@
+{
+  "name": "Enterprise Deployment Toolkit",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/go": {
+      "version": "1.22.0"
+    }
+  },
+  "remoteEnv": {
+    "GIT_EDITOR": "code --wait"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "EditorConfig.EditorConfig",
+        "golang.go",
+        "zxh404.vscode-proto3"
+      ]
+    }
+  }
+}
