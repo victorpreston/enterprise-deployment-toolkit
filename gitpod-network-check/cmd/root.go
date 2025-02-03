@@ -24,6 +24,7 @@ type NetworkConfig struct {
 	PodSubnets  []string
 	HttpsHosts  []string
 	InstanceAMI string
+	ApiEndpoint string
 }
 
 var networkConfig = NetworkConfig{LogLevel: "INFO"}
@@ -91,6 +92,7 @@ func init() {
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
 	bindFlags(networkCheckCmd, v)
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
+	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.ApiEndpoint, "api-endpoint", "", "The Gitpod Enterprise control plane's regional API endpoint subdomain")
 	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, and hosts `%v`", networkConfig.AwsRegion, networkConfig.MainSubnets, networkConfig.PodSubnets, networkConfig.HttpsHosts)
 }
 
