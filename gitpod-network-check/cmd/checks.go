@@ -66,10 +66,6 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			log.Infof("ℹ️  Found duplicate subnets. We'll test each subnet '%v' only once.", distinctSubnets)
 		}
 
-		if networkConfig.ApiEndpoint == "" {
-			return fmt.Errorf("❌ API endpoint is required")
-		}
-
 		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
 		mainInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.MainSubnets, instanceProfile.Arn)
 		if err != nil {
@@ -127,9 +123,11 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 
 		log.Infof("ℹ️  Checking if certain AWS Services can be reached from ec2 instances in the main subnet")
 		serviceEndpointsForMain := map[string]string{
-			"S3":         fmt.Sprintf("https://s3.%s.amazonaws.com", networkConfig.AwsRegion),
-			"DynamoDB":   fmt.Sprintf("https://dynamodb.%s.amazonaws.com", networkConfig.AwsRegion),
-			"ExecuteAPI": fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com", networkConfig.ApiEndpoint, networkConfig.AwsRegion),
+			"S3":       fmt.Sprintf("https://s3.%s.amazonaws.com", networkConfig.AwsRegion),
+			"DynamoDB": fmt.Sprintf("https://dynamodb.%s.amazonaws.com", networkConfig.AwsRegion),
+		}
+		if networkConfig.ApiEndpoint != "" {
+			serviceEndpointsForMain["ExecuteAPI"] = fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com", networkConfig.ApiEndpoint, networkConfig.AwsRegion)
 		}
 		checkServicesAvailability(cmd.Context(), ssmClient, mainInstanceIds, serviceEndpointsForMain)
 
