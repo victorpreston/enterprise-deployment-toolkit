@@ -44,6 +44,7 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    pod-subnets: subnet-028d11dce93b8eefc, subnet-04ec8257d95c434b7,subnet-00a83550ce709f39c
    https-hosts: accounts.google.com, github.com
    instance-ami: # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
+   api-endpoint: # optional, put your API endpoint regional sub-domain here to test connectivity, like when the execute-api vpc endpoint is not in the same account as Gitpod 
    ```
 
    note: if using a custom AMI, please ensure the [SSM agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/manually-install-ssm-agent-linux.html) and [curl](https://curl.se/) are both installed. We rely on SSM's [SendCommand](https://docs.aws.amazon.com/code-library/latest/ug/ssm_example_ssm_SendCommand_section.html) to test HTTPS connectivity.
