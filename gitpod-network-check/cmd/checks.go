@@ -500,10 +500,12 @@ func fetchResultsForInstance(ctx context.Context, svc *ssm.Client, instanceId, c
 		}
 
 		if err != nil {
+			log.Errorf("❌ Error getting command invocation for instance %s: %v", instanceId, err)
 			return false, fmt.Errorf("error getting command invocation for instance %s: %v", instanceId, err)
 		}
 
 		if *invocationResult.StatusDetails == "Pending" || *invocationResult.StatusDetails == "InProgress" {
+			log.Debugf("⏳ Instance %s is %s for command %s", instanceId, *invocationResult.StatusDetails, commandId)
 			return false, nil
 		}
 
@@ -511,6 +513,7 @@ func fetchResultsForInstance(ctx context.Context, svc *ssm.Client, instanceId, c
 			log.Debugf("✅ Instance %s command output:\n%s\n", instanceId, *invocationResult.StandardOutputContent)
 			return true, nil
 		} else {
+			log.Errorf("❌ Instance %s command with status %s not successful:\n%s\n", instanceId, *invocationResult.StatusDetails, *invocationResult.StandardErrorContent)
 			return false, fmt.Errorf("instance %s command failed: %s", instanceId, *invocationResult.StandardErrorContent)
 		}
 	})
@@ -524,11 +527,11 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 
 	describeSubnetsOutput, err := svc.DescribeSubnets(ctx, describeSubnetsInput)
 	if err != nil {
-		return "", fmt.Errorf("Failed to describe subnet: %v", err)
+		return "", fmt.Errorf("failed to describe subnet: %v", err)
 	}
 
 	if len(describeSubnetsOutput.Subnets) == 0 {
-		return "", fmt.Errorf("No subnets found with ID: %s", subnetID)
+		return "", fmt.Errorf("no subnets found with ID: %s", subnetID)
 	}
 
 	vpcID := describeSubnetsOutput.Subnets[0].VpcId
@@ -655,7 +658,7 @@ func getPreferredInstanceType(ctx context.Context, svc *ec2.Client) (types.Insta
 			return instanceType, nil
 		}
 	}
-	return "", fmt.Errorf("No preferred instance type available in region: %s", networkConfig.AwsRegion)
+	return "", fmt.Errorf("no preferred instance type available in region: %s", networkConfig.AwsRegion)
 }
 
 func instanceTypeExists(ctx context.Context, svc *ec2.Client, instanceType types.InstanceType) (bool, error) {
