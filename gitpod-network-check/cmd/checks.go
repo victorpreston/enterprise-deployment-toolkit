@@ -87,7 +87,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			irwo.MaxDelay = 15 * time.Second
 			irwo.MinDelay = 5 * time.Second
 		})
-		err = runningWaiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(5 * time.Minute))
+		err = runningWaiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Running: %v", err)
 		}
@@ -96,7 +96,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			isow.MaxDelay = 15 * time.Second
 			isow.MinDelay = 5 * time.Second
 		})
-		err = waitstatusOK.Wait(cmd.Context(), &ec2.DescribeInstanceStatusInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
+		err = waitstatusOK.Wait(cmd.Context(), &ec2.DescribeInstanceStatusInput{InstanceIds: InstanceIds}, *aws.Duration(5 * time.Minute))
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Healthy: %v", err)
 		}
