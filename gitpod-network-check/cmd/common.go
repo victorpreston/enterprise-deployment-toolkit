@@ -66,6 +66,7 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 	}
 
 	if len(InstanceIds) > 0 {
+		log.Info("ℹ️  Terminating EC2 instances")
 		_, err := svc.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
 			InstanceIds: InstanceIds,
 		})
