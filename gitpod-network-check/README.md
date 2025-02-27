@@ -55,65 +55,65 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
    ```console
    ./gitpod-network-check diagnose
-INFO[0000] ℹ️  Running with region `eu-central-1`, main subnet `[subnet-0ed211f14362b224f  subnet-041703e62a05d2024]`, pod subnet `[subnet-075c44edead3b062f  subnet-06eb311c6b92e0f29]`, hosts `[accounts.google.com  https://github.com]`, ami ``, and API endpoint `` 
-INFO[0000] ✅ Main Subnets are valid                     
-INFO[0000] ✅ Pod Subnets are valid                      
-INFO[0000] ℹ️  Checking prerequisites                   
-INFO[0000] ℹ️  VPC endpoint com.amazonaws.eu-central-1.ec2messages is not configured, testing service connectivity... 
-INFO[0000] ✅ Service ec2messages.eu-central-1.amazonaws.com has connectivity 
-INFO[0000] ℹ️  VPC endpoint com.amazonaws.eu-central-1.ssm is not configured, testing service connectivity... 
-INFO[0000] ✅ Service ssm.eu-central-1.amazonaws.com has connectivity 
-INFO[0000] ℹ️  VPC endpoint com.amazonaws.eu-central-1.ssmmessages is not configured, testing service connectivity... 
-INFO[0000] ✅ Service ssmmessages.eu-central-1.amazonaws.com has connectivity 
-INFO[0000] ✅ VPC endpoint com.amazonaws.eu-central-1.execute-api is configured 
-INFO[0001] ✅ IAM role created and policy attached       
-INFO[0001] ℹ️  Launching EC2 instances in Main subnets  
-INFO[0001] ℹ️  Created security group with ID: sg-0784ba9ba1731f522 
-INFO[0002] ℹ️  Instance type t2.micro shall be used     
-INFO[0009] ℹ️  Created security group with ID: sg-088d7ea455ba271f5 
-INFO[0010] ℹ️  Instance type t2.micro shall be used     
-INFO[0011] ℹ️  Main EC2 instances: [i-00675f1d3d0162acb i-041d127c852b5c1ab] 
-INFO[0011] ℹ️  Launching EC2 instances in a Pod subnets 
-INFO[0012] ℹ️  Created security group with ID: sg-03575b98e15e8b184 
-INFO[0012] ℹ️  Instance type t2.micro shall be used     
-INFO[0014] ℹ️  Created security group with ID: sg-00d4a66a7840ebd67 
-INFO[0014] ℹ️  Instance type t2.micro shall be used     
-INFO[0016] ℹ️  Pod EC2 instances: [i-00e2b26e784c900c6 i-077cbced73ee64c1d] 
-INFO[0016] ℹ️  Waiting for EC2 instances to become Running (times out in 4 minutes) 
-INFO[0021] ℹ️  Waiting for EC2 instances to become Healthy (times out in 4 minutes) 
-INFO[0199] ✅ EC2 Instances are now running successfully 
-INFO[0199] ℹ️  Connecting to SSM...                     
-INFO[0199] ℹ️  Checking if the required AWS Services can be reached from the ec2 instances in the pod subnet 
-INFO[0201] ✅ Autoscaling is available                   
-INFO[0202] ✅ CloudFormation is available                
-INFO[0203] ✅ CloudWatch is available                    
-INFO[0204] ✅ EC2 is available                           
-INFO[0205] ✅ EC2messages is available                   
-INFO[0206] ✅ ECR is available                           
-INFO[0206] ✅ ECR Api is available                       
-INFO[0207] ✅ EKS is available                           
-INFO[0209] ✅ Elastic LoadBalancing is available         
-INFO[0210] ✅ KMS is available                           
-INFO[0211] ✅ Kinesis Firehose is available              
-INFO[0212] ✅ SSM is available                           
-INFO[0212] ✅ SSMmessages is available                   
-INFO[0214] ✅ SecretsManager is available                
-INFO[0215] ✅ Sts is available                           
-INFO[0215] ℹ️  Checking if certain AWS Services can be reached from ec2 instances in the main subnet 
-INFO[0216] ✅ DynamoDB is available                      
-INFO[0217] ✅ S3 is available                            
-INFO[0217] ℹ️  Checking if hosts can be reached with HTTPS from ec2 instances in the main subnets 
-INFO[0218] ✅ accounts.google.com is available           
-INFO[0219] ✅ https://github.com is available            
-INFO[0219] ℹ️  Terminating EC2 instances                
-INFO[0219] ℹ️  Waiting for EC2 instances to Terminate (times out in 4 minutes) 
-INFO[0304] ✅ Instances terminated                       
-INFO[0305] ✅ Role 'GitpodNetworkCheck' deleted          
-INFO[0305] ✅ Instance profile deleted                   
-INFO[0305] ✅ Security group 'sg-0784ba9ba1731f522' deleted 
-INFO[0306] ✅ Security group 'sg-088d7ea455ba271f5' deleted 
-INFO[0306] ✅ Security group 'sg-03575b98e15e8b184' deleted 
-INFO[0306] ✅ Security group 'sg-00d4a66a7840ebd67' deleted 
+   INFO[0000] ℹ️  Running with region `eu-central-1`, main subnet `[subnet-0ed211f14362b224f  subnet-041703e62a05d2024]`, pod subnet `[subnet-075c44edead3b062f  subnet-06eb311c6b92e0f29]`, hosts `[accounts.google.com  https://github.com]`, ami ``, and API endpoint `` 
+   INFO[0000] ✅ Main Subnets are valid                     
+   INFO[0000] ✅ Pod Subnets are valid                      
+   INFO[0000] ℹ️  Checking prerequisites                   
+   INFO[0000] ℹ️  VPC endpoint com.amazonaws.eu-central-1.ec2messages is not configured, testing service connectivity... 
+   INFO[0000] ✅ Service ec2messages.eu-central-1.amazonaws.com has connectivity 
+   INFO[0000] ℹ️  VPC endpoint com.amazonaws.eu-central-1.ssm is not configured, testing service connectivity... 
+   INFO[0000] ✅ Service ssm.eu-central-1.amazonaws.com has connectivity 
+   INFO[0000] ℹ️  VPC endpoint com.amazonaws.eu-central-1.ssmmessages is not configured, testing service connectivity... 
+   INFO[0000] ✅ Service ssmmessages.eu-central-1.amazonaws.com has connectivity 
+   INFO[0000] ✅ VPC endpoint com.amazonaws.eu-central-1.execute-api is configured 
+   INFO[0001] ✅ IAM role created and policy attached       
+   INFO[0001] ℹ️  Launching EC2 instances in Main subnets  
+   INFO[0001] ℹ️  Created security group with ID: sg-0784ba9ba1731f522 
+   INFO[0002] ℹ️  Instance type t2.micro shall be used     
+   INFO[0009] ℹ️  Created security group with ID: sg-088d7ea455ba271f5 
+   INFO[0010] ℹ️  Instance type t2.micro shall be used     
+   INFO[0011] ℹ️  Main EC2 instances: [i-00675f1d3d0162acb i-041d127c852b5c1ab] 
+   INFO[0011] ℹ️  Launching EC2 instances in a Pod subnets 
+   INFO[0012] ℹ️  Created security group with ID: sg-03575b98e15e8b184 
+   INFO[0012] ℹ️  Instance type t2.micro shall be used     
+   INFO[0014] ℹ️  Created security group with ID: sg-00d4a66a7840ebd67 
+   INFO[0014] ℹ️  Instance type t2.micro shall be used     
+   INFO[0016] ℹ️  Pod EC2 instances: [i-00e2b26e784c900c6 i-077cbced73ee64c1d] 
+   INFO[0016] ℹ️  Waiting for EC2 instances to become Running (times out in 4 minutes) 
+   INFO[0021] ℹ️  Waiting for EC2 instances to become Healthy (times out in 4 minutes) 
+   INFO[0199] ✅ EC2 Instances are now running successfully 
+   INFO[0199] ℹ️  Connecting to SSM...                     
+   INFO[0199] ℹ️  Checking if the required AWS Services can be reached from the ec2 instances in the pod subnet 
+   INFO[0201] ✅ Autoscaling is available                   
+   INFO[0202] ✅ CloudFormation is available                
+   INFO[0203] ✅ CloudWatch is available                    
+   INFO[0204] ✅ EC2 is available                           
+   INFO[0205] ✅ EC2messages is available                   
+   INFO[0206] ✅ ECR is available                           
+   INFO[0206] ✅ ECR Api is available                       
+   INFO[0207] ✅ EKS is available                           
+   INFO[0209] ✅ Elastic LoadBalancing is available         
+   INFO[0210] ✅ KMS is available                           
+   INFO[0211] ✅ Kinesis Firehose is available              
+   INFO[0212] ✅ SSM is available                           
+   INFO[0212] ✅ SSMmessages is available                   
+   INFO[0214] ✅ SecretsManager is available                
+   INFO[0215] ✅ Sts is available                           
+   INFO[0215] ℹ️  Checking if certain AWS Services can be reached from ec2 instances in the main subnet 
+   INFO[0216] ✅ DynamoDB is available                      
+   INFO[0217] ✅ S3 is available                            
+   INFO[0217] ℹ️  Checking if hosts can be reached with HTTPS from ec2 instances in the main subnets 
+   INFO[0218] ✅ accounts.google.com is available           
+   INFO[0219] ✅ https://github.com is available            
+   INFO[0219] ℹ️  Terminating EC2 instances                
+   INFO[0219] ℹ️  Waiting for EC2 instances to Terminate (times out in 4 minutes) 
+   INFO[0304] ✅ Instances terminated                       
+   INFO[0305] ✅ Role 'GitpodNetworkCheck' deleted          
+   INFO[0305] ✅ Instance profile deleted                   
+   INFO[0305] ✅ Security group 'sg-0784ba9ba1731f522' deleted 
+   INFO[0306] ✅ Security group 'sg-088d7ea455ba271f5' deleted 
+   INFO[0306] ✅ Security group 'sg-03575b98e15e8b184' deleted 
+   INFO[0306] ✅ Security group 'sg-00d4a66a7840ebd67' deleted 
    ```
 
 3. Clean up after network diagnosis
