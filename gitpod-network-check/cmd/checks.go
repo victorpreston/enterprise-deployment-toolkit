@@ -87,11 +87,11 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			irwo.MaxDelay = 15 * time.Second
 			irwo.MinDelay = 5 * time.Second
 		})
-		err = runningWaiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
+		err = runningWaiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(5 * time.Minute))
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Running: %v", err)
 		}
-		log.Infof("ℹ️  Waiting for EC2 instances to become Healthy (times out in 4 minutes)")
+		log.Infof("ℹ️  Waiting for EC2 instances to become Healthy (times out in 5 minutes)")
 		waitstatusOK := ec2.NewInstanceStatusOkWaiter(ec2Client, func(isow *ec2.InstanceStatusOkWaiterOptions) {
 			isow.MaxDelay = 15 * time.Second
 			isow.MinDelay = 5 * time.Second
