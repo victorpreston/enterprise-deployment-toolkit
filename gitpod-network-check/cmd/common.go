@@ -66,6 +66,7 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 	}
 
 	if len(InstanceIds) > 0 {
+		log.Info("ℹ️  Terminating EC2 instances")
 		_, err := svc.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
 			InstanceIds: InstanceIds,
 		})
@@ -73,10 +74,19 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 			log.WithError(err).WithField("instanceIds", InstanceIds).Warnf("Failed to cleanup instances, please cleanup manually")
 		}
 
-		log.Info("✅ Instances terminated")
-
-		log.Info("Cleaning up: Waiting for 2 minutes so network interfaces are deleted")
-		time.Sleep(2 * time.Minute)
+		terminateWaiter := ec2.NewInstanceTerminatedWaiter(svc, func(itwo *ec2.InstanceTerminatedWaiterOptions) {
+			itwo.MaxDelay = 15 * time.Second
+			itwo.MinDelay = 5 * time.Second
+		})
+		log.Info("ℹ️  Waiting for EC2 instances to Terminate (times out in 4 minutes)")
+		err = terminateWaiter.Wait(ctx, &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
+		if err != nil {
+			log.WithError(err).Warn("Failed to wait for instances to terminate")
+			log.Warn("Waiting 2 minutes so network interfaces are deleted")
+			time.Sleep(2 * time.Minute)
+		} else {
+			log.Info("✅ Instances terminated")
+		}
 	}
 
 	if len(Roles) == 0 {

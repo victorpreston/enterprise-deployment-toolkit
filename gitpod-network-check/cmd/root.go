@@ -93,7 +93,7 @@ func init() {
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.ApiEndpoint, "api-endpoint", "", "The Gitpod Enterprise control plane's regional API endpoint subdomain")
 	bindFlags(networkCheckCmd, v)
-	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, hosts `%v`, and api endpoint `%v`", networkConfig.AwsRegion, networkConfig.MainSubnets, networkConfig.PodSubnets, networkConfig.HttpsHosts, networkConfig.ApiEndpoint)
+	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, hosts `%v`, ami `%v`, and API endpoint `%v`", networkConfig.AwsRegion, networkConfig.MainSubnets, networkConfig.PodSubnets, networkConfig.HttpsHosts, networkConfig.InstanceAMI, networkConfig.ApiEndpoint)
 }
 
 func readConfigFile() *viper.Viper {

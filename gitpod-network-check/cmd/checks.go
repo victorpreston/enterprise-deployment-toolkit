@@ -82,14 +82,23 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		log.Infof("ℹ️  Pod EC2 instances: %v", podInstanceIds)
 		InstanceIds = append(InstanceIds, podInstanceIds...)
 
-		log.Infof("ℹ️  Waiting for EC2 instances to become ready (can take up to 2 minutes)")
-		waiter := ec2.NewInstanceRunningWaiter(ec2Client, func(irwo *ec2.InstanceRunningWaiterOptions) {
+		log.Infof("ℹ️  Waiting for EC2 instances to become Running (times out in 4 minutes)")
+		runningWaiter := ec2.NewInstanceRunningWaiter(ec2Client, func(irwo *ec2.InstanceRunningWaiterOptions) {
 			irwo.MaxDelay = 15 * time.Second
 			irwo.MinDelay = 5 * time.Second
 		})
-		err = waiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
+		err = runningWaiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
 		if err != nil {
-			return fmt.Errorf("❌ Nodes never got ready: %v", err)
+			return fmt.Errorf("❌ Nodes never got Running: %v", err)
+		}
+		log.Infof("ℹ️  Waiting for EC2 instances to become Healthy (times out in 5 minutes)")
+		waitstatusOK := ec2.NewInstanceStatusOkWaiter(ec2Client, func(isow *ec2.InstanceStatusOkWaiterOptions) {
+			isow.MaxDelay = 15 * time.Second
+			isow.MinDelay = 5 * time.Second
+		})
+		err = waitstatusOK.Wait(cmd.Context(), &ec2.DescribeInstanceStatusInput{InstanceIds: InstanceIds}, *aws.Duration(5 * time.Minute))
+		if err != nil {
+			return fmt.Errorf("❌ Nodes never got Healthy: %v", err)
 		}
 		log.Info("✅ EC2 Instances are now running successfully")
 
@@ -98,8 +107,6 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return fmt.Errorf("❌ could not connect to SSM: %w", err)
 		}
-
-		time.Sleep(time.Minute)
 
 		log.Infof("ℹ️  Checking if the required AWS Services can be reached from the ec2 instances in the pod subnet")
 		serviceEndpoints := map[string]string{
