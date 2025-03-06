@@ -199,6 +199,7 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		},
 	}
 
+	var prereqErrs []string
 	for _, endpoint := range vpcEndpoints {
 		response, err := ec2Client.DescribeVpcEndpoints(ctx, &ec2.DescribeVpcEndpointsInput{
 			Filters: []types.Filter{
@@ -214,31 +215,38 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		}
 
 		if len(response.VpcEndpoints) == 0 {
-			if strings.Contains(endpoint.Endpoint, "execute-api") {
-				log.Infof("ℹ️  Deferring connectivity test for %s service until testing main subnet", endpoint.PrivateDnsName)
+			if strings.Contains(endpoint.Endpoint, "execute-api") && networkConfig.ApiEndpoint != "" {
+				log.Infof("ℹ️ 'api-endpoint' parameter exists, deferring connectivity test for execute-api VPC endpoint until testing main subnet connectivity")
+				continue
+			} else if strings.Contains(endpoint.Endpoint, "execute-api") && networkConfig.ApiEndpoint == "" {
+				errMsg := "Add a VPC endpoint for execute-api in this account or use the 'api-endpoint' parameter to specify a centralized one in another account, and test again"
+				log.Errorf("❌ %s", errMsg)
+				prereqErrs = append(prereqErrs, errMsg)
 				continue
 			}
-			log.Infof("ℹ️  VPC endpoint %s is not configured, testing service connectivity...", endpoint.Endpoint)
 			_, err := TestServiceConnectivity(ctx, endpoint.PrivateDnsName, 5*time.Second)
 			if err != nil {
-				log.Errorf("❌ Service %s connectivity test failed: %v\n", endpoint.PrivateDnsName, err)
-			} else if endpoint.PrivateDnsRequired {
-				log.Warnf("✅ Service %s has connectivity, ensure Private DNS is enabled 🙏", endpoint.PrivateDnsName)
-			} else if !endpoint.PrivateDnsRequired {
-				log.Infof("✅ Service %s has connectivity", endpoint.PrivateDnsName)
+				errMsg := fmt.Sprintf("Service %s connectivity test failed: %v\n", endpoint.PrivateDnsName, err)
+				log.Error("❌ %w", errMsg)
+				prereqErrs = append(prereqErrs, errMsg)
 			}
+			log.Infof("✅ Service %s has connectivity", endpoint.PrivateDnsName)
 		} else {
 			for _, e := range response.VpcEndpoints {
 				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled && endpoint.PrivateDnsRequired {
-					log.Errorf("❌ VPC endpoint '%s' has private DNS disabled, it must be enabled", *e.VpcEndpointId)
+					errMsg := fmt.Sprintf("VPC endpoint '%s' has private DNS disabled, it must be enabled", *e.VpcEndpointId)
+					log.Errorf("❌ %s", errMsg)
+					prereqErrs = append(prereqErrs, errMsg)
 				}
 			}
 			log.Infof("✅ VPC endpoint %s is configured", endpoint.Endpoint)
 		}
 	}
 
+	if len(prereqErrs) > 0 {
+		return fmt.Errorf("%s", strings.Join(prereqErrs, "; "))
+	}
 	return nil
-
 }
 
 func ensureSessionManagerIsUp(ctx context.Context, ssmClient *ssm.Client) error {
