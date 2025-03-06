@@ -91,7 +91,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Running: %v", err)
 		}
-		log.Info("✅  EC2 instances are now Running.")
+		log.Info("✅ EC2 instances are now Running.")
 		log.Info("ℹ️  Waiting for EC2 instances to become Healthy (times out in 5 minutes)")
 		waitstatusOK := ec2.NewInstanceStatusOkWaiter(ec2Client, func(isow *ec2.InstanceStatusOkWaiterOptions) {
 			isow.MaxDelay = 15 * time.Second
