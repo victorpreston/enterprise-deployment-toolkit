@@ -78,11 +78,11 @@ func cleanup(ctx context.Context, svc *ec2.Client, iamsvc *iam.Client) {
 			itwo.MaxDelay = 15 * time.Second
 			itwo.MinDelay = 5 * time.Second
 		})
-		log.Info("ℹ️  Waiting for EC2 instances to Terminate (times out in 4 minutes)")
-		err = terminateWaiter.Wait(ctx, &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
+		log.Info("ℹ️  Waiting for EC2 instances to Terminate (times out in 5 minutes)")
+		err = terminateWaiter.Wait(ctx, &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(5 * time.Minute))
 		if err != nil {
 			log.WithError(err).Warn("Failed to wait for instances to terminate")
-			log.Warn("Waiting 2 minutes so network interfaces are deleted")
+			log.Warn("ℹ️  Waiting 2 minutes so network interfaces are deleted")
 			time.Sleep(2 * time.Minute)
 		} else {
 			log.Info("✅ Instances terminated")
