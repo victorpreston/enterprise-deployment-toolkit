@@ -101,7 +101,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Healthy: %v", err)
 		}
-		log.Info("✅  EC2 Instances are now healthy/Ok")
+		log.Info("✅ EC2 Instances are now healthy/Ok")
 
 		log.Infof("ℹ️  Connecting to SSM...")
 		err = ensureSessionManagerIsUp(cmd.Context(), ssmClient)
