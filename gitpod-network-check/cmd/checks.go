@@ -66,7 +66,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			log.Infof("ℹ️  Found duplicate subnets. We'll test each subnet '%v' only once.", distinctSubnets)
 		}
 
-		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
+		log.Info("ℹ️  Launching EC2 instances in Main subnets")
 		mainInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.MainSubnets, instanceProfile.Arn)
 		if err != nil {
 			return err
@@ -74,7 +74,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		log.Infof("ℹ️  Main EC2 instances: %v", mainInstanceIds)
 		InstanceIds = append(InstanceIds, mainInstanceIds...)
 
-		log.Infof("ℹ️  Launching EC2 instances in a Pod subnets")
+		log.Info("ℹ️  Launching EC2 instances in a Pod subnets")
 		podInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.PodSubnets, instanceProfile.Arn)
 		if err != nil {
 			return err
@@ -82,7 +82,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		log.Infof("ℹ️  Pod EC2 instances: %v", podInstanceIds)
 		InstanceIds = append(InstanceIds, podInstanceIds...)
 
-		log.Infof("ℹ️  Waiting for EC2 instances to become Running (times out in 4 minutes)")
+		log.Info("ℹ️  Waiting for EC2 instances to become Running (times out in 4 minutes)")
 		runningWaiter := ec2.NewInstanceRunningWaiter(ec2Client, func(irwo *ec2.InstanceRunningWaiterOptions) {
 			irwo.MaxDelay = 15 * time.Second
 			irwo.MinDelay = 5 * time.Second
@@ -91,7 +91,8 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Running: %v", err)
 		}
-		log.Infof("ℹ️  Waiting for EC2 instances to become Healthy (times out in 5 minutes)")
+		log.Info("ℹ️  EC2 instances are now Running.")
+		log.Info("ℹ️  Waiting for EC2 instances to become Healthy (times out in 5 minutes)")
 		waitstatusOK := ec2.NewInstanceStatusOkWaiter(ec2Client, func(isow *ec2.InstanceStatusOkWaiterOptions) {
 			isow.MaxDelay = 15 * time.Second
 			isow.MinDelay = 5 * time.Second
@@ -100,7 +101,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Healthy: %v", err)
 		}
-		log.Info("✅ EC2 Instances are now running successfully")
+		log.Info("✅ EC2 Instances are now healthy/Ok")
 
 		log.Infof("ℹ️  Connecting to SSM...")
 		err = ensureSessionManagerIsUp(cmd.Context(), ssmClient)
