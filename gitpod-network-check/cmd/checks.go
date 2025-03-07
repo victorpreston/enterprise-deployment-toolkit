@@ -66,7 +66,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			log.Infof("ℹ️  Found duplicate subnets. We'll test each subnet '%v' only once.", distinctSubnets)
 		}
 
-		log.Infof("ℹ️  Launching EC2 instances in Main subnets")
+		log.Info("ℹ️  Launching EC2 instances in Main subnets")
 		mainInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.MainSubnets, instanceProfile.Arn)
 		if err != nil {
 			return err
@@ -74,7 +74,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		log.Infof("ℹ️  Main EC2 instances: %v", mainInstanceIds)
 		InstanceIds = append(InstanceIds, mainInstanceIds...)
 
-		log.Infof("ℹ️  Launching EC2 instances in a Pod subnets")
+		log.Info("ℹ️  Launching EC2 instances in a Pod subnets")
 		podInstanceIds, err := launchInstances(cmd.Context(), ec2Client, networkConfig.PodSubnets, instanceProfile.Arn)
 		if err != nil {
 			return err
@@ -82,16 +82,17 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		log.Infof("ℹ️  Pod EC2 instances: %v", podInstanceIds)
 		InstanceIds = append(InstanceIds, podInstanceIds...)
 
-		log.Infof("ℹ️  Waiting for EC2 instances to become Running (times out in 4 minutes)")
+		log.Info("ℹ️  Waiting for EC2 instances to become Running (times out in 5 minutes)")
 		runningWaiter := ec2.NewInstanceRunningWaiter(ec2Client, func(irwo *ec2.InstanceRunningWaiterOptions) {
 			irwo.MaxDelay = 15 * time.Second
 			irwo.MinDelay = 5 * time.Second
 		})
-		err = runningWaiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(4 * time.Minute))
+		err = runningWaiter.Wait(cmd.Context(), &ec2.DescribeInstancesInput{InstanceIds: InstanceIds}, *aws.Duration(5 * time.Minute))
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Running: %v", err)
 		}
-		log.Infof("ℹ️  Waiting for EC2 instances to become Healthy (times out in 5 minutes)")
+		log.Info("✅ EC2 instances are now Running.")
+		log.Info("ℹ️  Waiting for EC2 instances to become Healthy (times out in 5 minutes)")
 		waitstatusOK := ec2.NewInstanceStatusOkWaiter(ec2Client, func(isow *ec2.InstanceStatusOkWaiterOptions) {
 			isow.MaxDelay = 15 * time.Second
 			isow.MinDelay = 5 * time.Second
@@ -100,7 +101,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		if err != nil {
 			return fmt.Errorf("❌ Nodes never got Healthy: %v", err)
 		}
-		log.Info("✅ EC2 Instances are now running successfully")
+		log.Info("✅ EC2 Instances are now healthy/Ok")
 
 		log.Infof("ℹ️  Connecting to SSM...")
 		err = ensureSessionManagerIsUp(cmd.Context(), ssmClient)
@@ -199,6 +200,7 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		},
 	}
 
+	var prereqErrs []string
 	for _, endpoint := range vpcEndpoints {
 		response, err := ec2Client.DescribeVpcEndpoints(ctx, &ec2.DescribeVpcEndpointsInput{
 			Filters: []types.Filter{
@@ -214,31 +216,38 @@ func checkSMPrerequisites(ctx context.Context, ec2Client *ec2.Client) error {
 		}
 
 		if len(response.VpcEndpoints) == 0 {
-			if strings.Contains(endpoint.Endpoint, "execute-api") {
-				log.Infof("ℹ️  Deferring connectivity test for %s service until testing main subnet", endpoint.PrivateDnsName)
+			if strings.Contains(endpoint.Endpoint, "execute-api") && networkConfig.ApiEndpoint != "" {
+				log.Infof("ℹ️ 'api-endpoint' parameter exists, deferring connectivity test for execute-api VPC endpoint until testing main subnet connectivity")
+				continue
+			} else if strings.Contains(endpoint.Endpoint, "execute-api") && networkConfig.ApiEndpoint == "" {
+				errMsg := "Add a VPC endpoint for execute-api in this account or use the 'api-endpoint' parameter to specify a centralized one in another account, and test again"
+				log.Errorf("❌ %s", errMsg)
+				prereqErrs = append(prereqErrs, errMsg)
 				continue
 			}
-			log.Infof("ℹ️  VPC endpoint %s is not configured, testing service connectivity...", endpoint.Endpoint)
 			_, err := TestServiceConnectivity(ctx, endpoint.PrivateDnsName, 5*time.Second)
 			if err != nil {
-				log.Errorf("❌ Service %s connectivity test failed: %v\n", endpoint.PrivateDnsName, err)
-			} else if endpoint.PrivateDnsRequired {
-				log.Warnf("✅ Service %s has connectivity, ensure Private DNS is enabled 🙏", endpoint.PrivateDnsName)
-			} else if !endpoint.PrivateDnsRequired {
-				log.Infof("✅ Service %s has connectivity", endpoint.PrivateDnsName)
+				errMsg := fmt.Sprintf("Service %s connectivity test failed: %v\n", endpoint.PrivateDnsName, err)
+				log.Error("❌ %w", errMsg)
+				prereqErrs = append(prereqErrs, errMsg)
 			}
+			log.Infof("✅ Service %s has connectivity", endpoint.PrivateDnsName)
 		} else {
 			for _, e := range response.VpcEndpoints {
 				if e.PrivateDnsEnabled != nil && !*e.PrivateDnsEnabled && endpoint.PrivateDnsRequired {
-					log.Errorf("❌ VPC endpoint '%s' has private DNS disabled, it must be enabled", *e.VpcEndpointId)
+					errMsg := fmt.Sprintf("VPC endpoint '%s' has private DNS disabled, it must be enabled", *e.VpcEndpointId)
+					log.Errorf("❌ %s", errMsg)
+					prereqErrs = append(prereqErrs, errMsg)
 				}
 			}
 			log.Infof("✅ VPC endpoint %s is configured", endpoint.Endpoint)
 		}
 	}
 
+	if len(prereqErrs) > 0 {
+		return fmt.Errorf("%s", strings.Join(prereqErrs, "; "))
+	}
 	return nil
-
 }
 
 func ensureSessionManagerIsUp(ctx context.Context, ssmClient *ssm.Client) error {
