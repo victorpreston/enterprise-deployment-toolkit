@@ -1,4 +1,2 @@
-image: gitpod/workspace-full
-
-checkoutLocation: enterprise-deployment-toolkit
-workspaceLocation: enterprise-deployment-toolkit/enterprise-deployment-toolkit.code-workspace
+image:
+  file: .gitpod.Dockerfile
