@@ -1,9 +1,12 @@
 package cmd
 
 import (
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"fmt"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check/pkg/runner"
 )
 
 var cleanCommand = &cobra.Command{ // nolint:gochecknoglobals
@@ -12,15 +15,20 @@ var cleanCommand = &cobra.Command{ // nolint:gochecknoglobals
 	Short:             "Explicitly cleans up after the network check diagnosis",
 	SilenceUsage:      false,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := initAwsConfig(cmd.Context(), networkConfig.AwsRegion)
+		ctx := cmd.Context()
+
+		log.Infof("ℹ️ Running cleanup")
+		runner, err := runner.LoadEC2RunnerFromTags(ctx, &networkConfig)
 		if err != nil {
-			return err
+			log.WithError(err).Fatal("Failed to load EC2 runner")
 		}
 
-		ec2Client := ec2.NewFromConfig(cfg)
-		iamClient := iam.NewFromConfig(cfg)
+		err = runner.Cleanup(ctx)
+		if err != nil {
+			return fmt.Errorf("❌ failed to cleanup: %v", err)
+		}
+		log.Infof("✅ Cleanup done")
 
-		cleanup(cmd.Context(), ec2Client, iamClient)
 		return nil
 	},
 }

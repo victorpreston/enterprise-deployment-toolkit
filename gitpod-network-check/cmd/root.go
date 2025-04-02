@@ -11,32 +11,21 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check/pkg/checks"
 )
 
-type NetworkConfig struct {
-	LogLevel  string
-	CfgFile   string
-	AwsRegion string
-	Destroy   bool
-	Cleanup   bool
-
-	MainSubnets []string
-	PodSubnets  []string
-	HttpsHosts  []string
-	InstanceAMI string
-	ApiEndpoint string
-}
-
-var networkConfig = NetworkConfig{LogLevel: "INFO"}
+var networkConfig = checks.NetworkConfig{LogLevel: "INFO"}
 
 var networkCheckCmd = &cobra.Command{ // nolint:gochecknoglobals
-	PersistentPreRunE: configLogger,
+	PersistentPreRunE: preRunE,
 	Use:               "gitpod-network-check",
 	Short:             "CLI to check if your network is setup correctly to deploy Gitpod",
 	SilenceUsage:      false,
 }
 
-func configLogger(cmd *cobra.Command, args []string) error {
+func preRunE(cmd *cobra.Command, args []string) error {
+	// setup logger
 	lvl, err := log.ParseLevel(networkConfig.LogLevel)
 	if err != nil {
 		log.WithField("log-level", networkConfig.CfgFile).Fatal("incorrect log level")
@@ -46,6 +35,20 @@ func configLogger(cmd *cobra.Command, args []string) error {
 
 	log.SetLevel(lvl)
 	log.WithField("log-level", networkConfig.CfgFile).Debug("log level configured")
+
+	// validate the config
+	return validateSubnets(cmd, args)
+}
+
+func validateSubnets(cmd *cobra.Command, args []string) error {
+	if len(networkConfig.MainSubnets) < 1 {
+		return fmt.Errorf("At least one Main subnet needs to be specified: %v", networkConfig.MainSubnets)
+	}
+	log.Info("✅ Main Subnets are valid")
+	if len(networkConfig.PodSubnets) < 1 {
+		return fmt.Errorf("At least one Pod subnet needs to be specified: %v", networkConfig.PodSubnets)
+	}
+	log.Info("✅ Pod Subnets are valid")
 
 	return nil
 }
@@ -92,6 +95,8 @@ func init() {
 	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
 	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.ApiEndpoint, "api-endpoint", "", "The Gitpod Enterprise control plane's regional API endpoint subdomain")
+	networkCheckCmd.Flags().StringSliceVar(&flags.SelectedTestsets, "testsets", []string{"aws-services-pod-subnet", "aws-services-main-subnet", "https-hosts-main-subnet"}, "List of testsets to run (options: aws-services-pod-subnet, aws-services-main-subnet, https-hosts-main-subnet)")
+	networkCheckCmd.Flags().StringVar(&flags.ModeVar, "mode", string(ModeEC2), "How to run the tests (default: ec2, options: ec2, lamda)")
 	bindFlags(networkCheckCmd, v)
 	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, hosts `%v`, ami `%v`, and API endpoint `%v`", networkConfig.AwsRegion, networkConfig.MainSubnets, networkConfig.PodSubnets, networkConfig.HttpsHosts, networkConfig.InstanceAMI, networkConfig.ApiEndpoint)
 }
