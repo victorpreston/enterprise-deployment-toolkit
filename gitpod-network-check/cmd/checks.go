@@ -12,28 +12,6 @@ import (
 	testrunner "github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check/pkg/runner"
 )
 
-type Mode string
-
-const (
-	ModeEC2    Mode = "ec2"
-	ModeLambda Mode = "lambda"
-)
-
-var validModes = map[string]bool{
-	string(ModeLambda): true,
-	string(ModeEC2):    true,
-}
-
-var flags = struct {
-	// Variable to store the testsets flag value
-	SelectedTestsets []string
-
-	// Variable to store the mode flag value
-	ModeVar string
-
-	Mode Mode
-}{}
-
 var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 	PersistentPreRunE: validateArguments,
 	Use:               "diagnose",
@@ -42,15 +20,17 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		var runner testrunner.TestRunner
-		if flags.Mode == ModeEC2 {
-			ec2Runner, err := testrunner.NewEC2TestRunner(ctx, &networkConfig)
-			if err != nil {
-				return fmt.Errorf("❌  failed to create EC2 test runner: %v", err)
-			}
-			runner = ec2Runner
+		runner, err := testrunner.NewRunner(ctx, flags.Mode, &networkConfig)
+		if err != nil {
+			return fmt.Errorf("❌  failed to create test runner: %v", err)
 		}
+
 		defer (func() {
+			// Ensure runner was actually assigned before trying to clean up
+			if runner == nil {
+				log.Info("ℹ️  No runner initialized, skipping cleanup.")
+				return
+			}
 			log.Infof("ℹ️  Running cleanup")
 			terr := runner.Cleanup(ctx)
 			if terr != nil {
@@ -60,7 +40,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 		})()
 
 		// Prepare
-		err := runner.Prepare(ctx)
+		err = runner.Prepare(ctx)
 		if err != nil {
 			return fmt.Errorf("❌  failed to prepare: %v", err)
 		}
@@ -92,12 +72,6 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 }
 
 func validateArguments(cmd *cobra.Command, args []string) error {
-	// Validate mode
-	if !validModes[flags.ModeVar] {
-		return fmt.Errorf("invalid mode: %s, must be one of: %v", flags.ModeVar, maps.Keys(validModes))
-	}
-	flags.Mode = Mode(flags.ModeVar)
-
 	// Validate testsets if specified
 	if len(flags.SelectedTestsets) > 0 {
 		for _, testset := range flags.SelectedTestsets {

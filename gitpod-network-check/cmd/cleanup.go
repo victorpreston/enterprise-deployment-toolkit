@@ -10,7 +10,6 @@ import (
 )
 
 var cleanCommand = &cobra.Command{ // nolint:gochecknoglobals
-	PersistentPreRunE: validateSubnets,
 	Use:               "clean",
 	Short:             "Explicitly cleans up after the network check diagnosis",
 	SilenceUsage:      false,
@@ -18,9 +17,9 @@ var cleanCommand = &cobra.Command{ // nolint:gochecknoglobals
 		ctx := cmd.Context()
 
 		log.Infof("ℹ️ Running cleanup")
-		runner, err := runner.LoadEC2RunnerFromTags(ctx, &networkConfig)
+		runner, err := runner.NewRunner(ctx, flags.Mode, &networkConfig)
 		if err != nil {
-			log.WithError(err).Fatal("Failed to load EC2 runner")
+			return fmt.Errorf("❌  failed to create test runner: %v", err)
 		}
 
 		err = runner.Cleanup(ctx)
