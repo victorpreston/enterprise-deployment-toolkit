@@ -29,13 +29,6 @@ import (
 const gitpodRoleName = "GitpodNetworkCheck"
 const gitpodInstanceProfile = "GitpodNetworkCheck"
 
-var networkCheckTag = []iam_types.Tag{
-	{
-		Key:   aws.String("gitpod.io/network-check"),
-		Value: aws.String("true"),
-	},
-}
-
 type EC2TestRunner struct {
 	networkConfig *checks.NetworkConfig
 
@@ -363,12 +356,7 @@ func launchInstanceInSubnet(ctx context.Context, ec2Client *ec2.Client, subnetID
 		TagSpecifications: []types.TagSpecification{
 			{
 				ResourceType: types.ResourceTypeInstance,
-				Tags: []types.Tag{
-					{
-						Key:   aws.String("gitpod.io/network-check"),
-						Value: aws.String("true"),
-					},
-				},
+				Tags:         NetworkCheckEC2Tags,
 			},
 		},
 	}
@@ -476,16 +464,11 @@ func LoadEC2RunnerFromTags(ctx context.Context, networkConfig *checks.NetworkCon
 
 	// load instanceIds
 	instances, err := svc.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-		Filters: []types.Filter{
-			{
-				Name:   aws.String("tag:gitpod.io/network-check"),
-				Values: []string{"true"},
-			},
-			{
-				Name:   aws.String("instance-state-name"),
-				Values: []string{"pending", "running", "shutting-down", "stopping", "stopped"},
-			},
+		Filters: append(NetworkCheckTagsFilter, types.Filter{
+			Name:   aws.String("instance-state-name"),
+			Values: []string{"pending", "running", "shutting-down", "stopping", "stopped"},
 		},
+		),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to list instances, please cleanup instances manually")
@@ -529,12 +512,7 @@ func LoadEC2RunnerFromTags(ctx context.Context, networkConfig *checks.NetworkCon
 
 	// load security groups
 	securityGroups, err := svc.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{
-		Filters: []types.Filter{
-			{
-				Name:   aws.String("tag:gitpod.io/network-check"),
-				Values: []string{"true"},
-			},
-		},
+		Filters: NetworkCheckTagsFilter,
 	})
 
 	if err != nil {
@@ -728,12 +706,7 @@ func createSecurityGroups(ctx context.Context, svc *ec2.Client, subnetID string)
 		TagSpecifications: []types.TagSpecification{
 			{
 				ResourceType: types.ResourceTypeSecurityGroup,
-				Tags: []types.Tag{
-					{
-						Key:   aws.String("gitpod.io/network-check"),
-						Value: aws.String("true"),
-					},
-				},
+				Tags:         NetworkCheckEC2Tags,
 			},
 		},
 	}
@@ -787,7 +760,7 @@ func createIAMRoleAndAttachPolicy(ctx context.Context, svc *iam.Client) (*iam_ty
 	createRoleOutput, err := svc.CreateRole(ctx, &iam.CreateRoleInput{
 		RoleName:                 aws.String(gitpodRoleName),
 		AssumeRolePolicyDocument: aws.String(trustPolicy),
-		Tags:                     networkCheckTag,
+		Tags:                     NetworkCheckIamTags,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating IAM role: %w", err)
@@ -809,7 +782,7 @@ func createInstanceProfileAndAttachRole(ctx context.Context, svc *iam.Client, ro
 	// Create instance profile
 	instanceProfileOutput, err := svc.CreateInstanceProfile(ctx, &iam.CreateInstanceProfileInput{
 		InstanceProfileName: aws.String(gitpodInstanceProfile),
-		Tags:                networkCheckTag,
+		Tags:                NetworkCheckIamTags,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating instance profile: %w", err)

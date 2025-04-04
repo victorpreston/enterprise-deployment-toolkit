@@ -2,33 +2,46 @@
 
 **What Works:**
 
-*   Core CLI structure (`diagnose`, `cleanup` commands).
-*   Configuration loading (Viper).
-*   Logging (Logrus).
+*   Core CLI structure using Cobra.
+*   Configuration loading via Viper (flags, file).
+*   `diagnose` command framework.
+*   `TestRunner` interface defined.
 *   `ec2` mode:
-    *   Creates necessary AWS resources (IAM Role/Profile, Security Group, EC2 Instance per subnet).
-    *   Uses SSM to run connectivity checks (`curl`) from within the EC2 instances.
-    *   Cleans up created AWS resources.
-*   Definition of `TestSets` for AWS services and generic HTTPS hosts.
+    *   Launches EC2 instances in specified subnets.
+    *   Uses SSM to run check scripts on instances.
+    *   Performs basic connectivity checks.
+    *   `cleanup` command removes EC2 resources.
+*   `local` mode:
+    *   Runs checks directly from the CLI host using Go's `net/http`.
+*   `lambda` mode:
+    *   `LambdaTestRunner` implemented (`Prepare`, `TestService`, `Cleanup`).
+    *   Internal `lambda-handler` subcommand created (`cmd/lambda_handler.go`) to perform checks inside Lambda, using shared types (`pkg/lambda_types`).
+    *   `Prepare` handles IAM role, SG creation, packaging the *main binary* with a `bootstrap` script, and Lambda deployment per subnet using `provided.al2` runtime.
+    *   `TestService` invokes Lambdas per subnet and aggregates JSON results.
+    *   `Prepare` handles IAM role, SG creation (or uses existing ones via flags/config), packaging the main binary with a `bootstrap` script, Lambda deployment per subnet using `provided.al2` runtime, and waits for functions to become active. Includes basic deferred cleanup on error.
+    *   `TestService` invokes Lambdas per subnet and aggregates JSON results.
+    *   `Cleanup` handles Lambda function, CloudWatch Log Group deletion, and deletes managed SG/IAM role (skips deletion if user-provided).
+    *   Integrated into `diagnose` (via `runner.NewRunner`) and `cleanup` commands.
+    *   Flags (`--lambda-role-arn`, `--lambda-sg-id`) and config options added.
+    *   Help text updated.
+    *   README documentation updated for Lambda mode prerequisites and usage.
+    *   Aligned resource tagging (`gitpod.io/network-check: true`) with EC2 mode.
+    *   Removed ad-hoc cleanup logic from `Prepare`.
+    *   Added `LoadLambdaRunnerFromTags` to discover existing resources for cleanup.
+    *   Integrated `LoadLambdaRunnerFromTags` into the `cleanup` command via `LoadRunnerFromTags`.
+    *   Removed separate Lambda handler code (`lambda/checker/`) and cleaned dependencies.
 
 **What's Left to Build:**
 
-*   **Local Mode Implementation:**
-    *   `pkg/runner/local-runner.go` file creation.
-    *   `LocalTestRunner` struct and `NewLocalTestRunner` constructor.
-    *   Implementation of `Prepare`, `TestService` (using `net/http`), and `Cleanup` methods for `LocalTestRunner`.
-*   **Integration of Local Mode:**
-    *   Update `cmd/checks.go` to recognize and instantiate `LocalTestRunner`.
-    *   Update `cmd/root.go` flag help text for `--mode`.
-*   **Lambda Mode:** (Future/Potential) Implementation is stubbed or incomplete in `cmd/checks.go`. Requires a `LambdaTestRunner`.
-*   **Testing:** Add unit/integration tests for the new `local` mode.
+*   **`lambda` mode enhancements:**
+    *   Testing in a real AWS environment.
+    *   Consider more sophisticated rollback logic in `Prepare` if needed beyond basic deferred cleanup.
 
 **Current Status:**
 
-*   Actively working on implementing the `local` execution mode.
-*   Memory Bank has been initialized.
+*   Implementation of `lambda` mode enhancements (Log Group cleanup, readiness wait, existing resource flags, documentation, aligned tagging) and cleanup refactoring completed.
+*   Ready for testing.
 
-**Known Issues/Challenges:**
+**Known Issues:**
 
-*   `ec2` mode requires significant AWS permissions and can take time due to resource provisioning/cleanup.
-*   `local` mode tests connectivity *from* the machine running the CLI, which might not perfectly represent connectivity *from* the Gitpod cluster nodes/pods within their specific subnets. This limitation should be documented or made clear to the user.
+*   Error handling during resource creation in `Prepare` relies solely on the caller invoking `Cleanup`. Complex partial failures might leave orphaned resources if `Cleanup` is not called or fails itself.

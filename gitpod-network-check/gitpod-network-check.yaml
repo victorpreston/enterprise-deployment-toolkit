@@ -1,9 +1,9 @@
 log-level: debug # Options: debug, info, warning, error
 region: eu-central-1
-main-subnets: subnet-0ed211f14362b224f, subnet-041703e62a05d2024
-pod-subnets: subnet-075c44edead3b062f, subnet-06eb311c6b92e0f29
+main-subnets: subnet-017c6a80f4879d851, subnet-0215744d52cd1c01f
+pod-subnets: subnet-00a118009d1d572a5, subnet-062288af00ba50d86
 https-hosts: accounts.google.com, https://github.com
 # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
-instance-ami:
+#instance-ami:
 # optional, put your API endpoint regional sub-domain here to test connectivity, like when the execute-api vpc endpoint is not in the same account as Gitpod 
-api-endpoint:
+#api-endpoint:

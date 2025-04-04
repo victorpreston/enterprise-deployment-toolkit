@@ -10,14 +10,14 @@ import (
 )
 
 var cleanCommand = &cobra.Command{ // nolint:gochecknoglobals
-	Use:               "clean",
-	Short:             "Explicitly cleans up after the network check diagnosis",
-	SilenceUsage:      false,
+	Use:          "clean",
+	Short:        "Explicitly cleans up after the network check diagnosis",
+	SilenceUsage: false,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
 		log.Infof("ℹ️ Running cleanup")
-		runner, err := runner.NewRunner(ctx, flags.Mode, &networkConfig)
+		runner, err := runner.LoadRunnerFromTags(ctx, Flags.Mode, &NetworkConfig)
 		if err != nil {
 			return fmt.Errorf("❌  failed to create test runner: %v", err)
 		}
@@ -30,4 +30,8 @@ var cleanCommand = &cobra.Command{ // nolint:gochecknoglobals
 
 		return nil
 	},
+}
+
+func init() {
+	NetworkCheckCmd.AddCommand(cleanCommand)
 }

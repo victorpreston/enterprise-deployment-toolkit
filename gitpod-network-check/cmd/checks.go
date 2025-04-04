@@ -12,20 +12,32 @@ import (
 	testrunner "github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check/pkg/runner"
 )
 
+var skipCleanup bool
+
+func init() {
+	checkCommand.Flags().BoolVar(&skipCleanup, "skip-cleanup", false, "Skip the cleanup false (default: false). Useful for debugging purposes.")
+	NetworkCheckCmd.AddCommand(checkCommand)
+}
+
 var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
-	PersistentPreRunE: validateArguments,
-	Use:               "diagnose",
-	Short:             "Runs the network check diagnosis",
-	SilenceUsage:      false,
+	PreRunE:      validateArguments,
+	Use:          "diagnose",
+	Short:        "Runs the network check diagnosis",
+	SilenceUsage: false,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		runner, err := testrunner.NewRunner(ctx, flags.Mode, &networkConfig)
+		runner, err := testrunner.NewRunner(ctx, Flags.Mode, &NetworkConfig)
 		if err != nil {
 			return fmt.Errorf("❌  failed to create test runner: %v", err)
 		}
 
 		defer (func() {
+			if skipCleanup {
+				log.Info("⚠️  Skipping cleanup, because --skip-cleanup flag is set.")
+				return
+			}
+
 			// Ensure runner was actually assigned before trying to clean up
 			if runner == nil {
 				log.Info("ℹ️  No runner initialized, skipping cleanup.")
@@ -45,12 +57,12 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 			return fmt.Errorf("❌  failed to prepare: %v", err)
 		}
 
-		for _, testset := range flags.SelectedTestsets {
+		for _, testset := range Flags.SelectedTestsets {
 			log.Infof("ℹ️  Running testset: %s", testset)
 
 			ts := checks.TestSets[checks.TestsetName(testset)]
-			serviceEndpoints, subnetType := ts(&networkConfig)
-			subnets := Filter(networkConfig.GetAllSubnets(), func(subnet checks.Subnet) bool {
+			serviceEndpoints, subnetType := ts(&NetworkConfig)
+			subnets := Filter(NetworkConfig.GetAllSubnets(), func(subnet checks.Subnet) bool { 
 				return subnet.Type == subnetType
 			})
 
@@ -73,8 +85,8 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 
 func validateArguments(cmd *cobra.Command, args []string) error {
 	// Validate testsets if specified
-	if len(flags.SelectedTestsets) > 0 {
-		for _, testset := range flags.SelectedTestsets {
+	if len(Flags.SelectedTestsets) > 0 {
+		for _, testset := range Flags.SelectedTestsets {
 			if _, exists := checks.TestSets[checks.TestsetName(testset)]; !exists {
 				return fmt.Errorf("Invalid testset: %s. Available testsets: %v",
 					testset,

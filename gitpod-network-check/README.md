@@ -44,17 +44,28 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    pod-subnets: subnet-028d11dce93b8eefc, subnet-04ec8257d95c434b7,subnet-00a83550ce709f39c
    https-hosts: accounts.google.com, github.com
    instance-ami: # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
-   api-endpoint: # optional, put your API endpoint regional sub-domain here to test connectivity, like when the execute-api vpc endpoint is not in the same account as Gitpod 
+   api-endpoint: # optional, put your API endpoint regional sub-domain here to test connectivity, like when the execute-api vpc endpoint is not in the same account as Gitpod
+   # lambda-role-arn: arn:aws:iam::123456789012:role/MyExistingLambdaRole # Optional: Use existing IAM Role for Lambda mode
+   # lambda-sg-id: sg-0123456789abcdef0 # Optional: Use existing Security Group for Lambda mode
    ```
 
-   note: if using a custom AMI, please ensure the [SSM agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/manually-install-ssm-agent-linux.html) and [curl](https://curl.se/) are both installed. We rely on SSM's [SendCommand](https://docs.aws.amazon.com/code-library/latest/ug/ssm_example_ssm_SendCommand_section.html) to test HTTPS connectivity.
+   **Note:** The `lambda-role-arn` and `lambda-sg-id` fields correspond to the `--lambda-role-arn` and `--lambda-sg-id` command-line flags, respectively. Setting them in the config file or via environment variables (e.g., `NTCHK_LAMBDA_ROLE_ARN`) achieves the same result.
+
+   **EC2 Mode Note:** If using a custom AMI (`instance-ami`), please ensure the [SSM agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/manually-install-ssm-agent-linux.html) and [curl](https://curl.se/) are both installed. We rely on SSM's [SendCommand](https://docs.aws.amazon.com/code-library/latest/ug/ssm_example_ssm_SendCommand_section.html) to test HTTPS connectivity in EC2 mode.
 
 2. Run the network diagnosis
 
-   To start the diagnosis, the the command: `./gitpod-network-check diagnose`
+   The tool supports different modes for running the checks, specified by the `--mode` flag (`ec2`, `lambda`, `local`).
+
+   **Using EC2 Mode (Default):**
+
+   This mode launches temporary EC2 instances in your specified subnets to perform the network checks. This most closely simulates the environment where Gitpod components will run.
+
+   To start the diagnosis using EC2 mode: `./gitpod-network-check diagnose --mode ec2` (or simply `./gitpod-network-check diagnose` as EC2 is the default).
 
    ```console
-   ./gitpod-network-check diagnose
+   # Example output for EC2 mode
+   ./gitpod-network-check diagnose --mode ec2
    INFO[0000] ℹ️  Running with region `eu-central-1`, main subnet `[subnet-0ed211f14362b224f  subnet-041703e62a05d2024]`, pod subnet `[subnet-075c44edead3b062f  subnet-06eb311c6b92e0f29]`, hosts `[accounts.google.com  https://github.com]`, ami ``, and API endpoint `` 
    INFO[0000] ✅ Main Subnets are valid                     
    INFO[0000] ✅ Pod Subnets are valid                      
@@ -116,21 +127,50 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    INFO[0306] ✅ Security group 'sg-00d4a66a7840ebd67' deleted 
    ```
 
+   **Using Lambda Mode:**
+
+   This mode uses AWS Lambda functions deployed into your specified subnets to perform the network checks. It avoids the need to launch full EC2 instances but has its own prerequisites.
+
+   *   **Prerequisites for Lambda Mode:**
+       *   **IAM Permissions:** The AWS credentials used to run `gitpod-network-check` need permissions to manage Lambda functions, IAM roles, security groups, and CloudWatch Logs. Specifically, it needs to perform actions like: `lambda:CreateFunction`, `lambda:GetFunction`, `lambda:DeleteFunction`, `lambda:InvokeFunction`, `iam:CreateRole`, `iam:GetRole`, `iam:DeleteRole`, `iam:AttachRolePolicy`, `iam:DetachRolePolicy`, `ec2:CreateSecurityGroup`, `ec2:DescribeSecurityGroups`, `ec2:DeleteSecurityGroup`, `ec2:AuthorizeSecurityGroupEgress`, `ec2:DescribeSubnets`, `logs:DeleteLogGroup`.
+       *   **Network Connectivity:** Lambda functions running within a VPC need a route to the internet or required AWS service endpoints. This typically requires a **NAT Gateway** in your VPC or **VPC Endpoints** for all necessary services (e.g., STS, CloudWatch Logs, ECR, S3, DynamoDB, and any target HTTPS hosts). Without proper outbound connectivity, the Lambda checks will fail.
+
+   *   **Running Lambda Mode:**
+       To start the diagnosis using Lambda mode:
+       ```bash
+       ./gitpod-network-check diagnose --mode lambda
+       ```
+
+   *   **Using Existing Resources (Lambda Mode):**
+       If you have pre-existing IAM roles or Security Groups you want the Lambda functions to use, you can specify them using flags. This will prevent the tool from creating or deleting these specific resources.
+       ```bash
+       ./gitpod-network-check diagnose --mode lambda \
+         --lambda-role-arn arn:aws:iam::123456789012:role/MyExistingLambdaRole \
+         --lambda-sg-id sg-0123456789abcdef0 
+       ```
+
+   *   **Example Output (Lambda Mode):**
+       The output will be similar to EC2 mode but will show Lambda function creation/invocation instead of EC2 instance management.
+
+   **Using Local Mode:**
+
+   This mode runs the checks directly from the machine where you execute the CLI. It's useful for basic outbound connectivity tests but **does not** accurately reflect the network environment within your AWS subnets.
+
+   To start the diagnosis using local mode: `./gitpod-network-check diagnose --mode local`
+
 3. Clean up after network diagnosis
 
-   Dianosis is designed to do clean-up before it finishes. However, if the process terminates unexpectedly, you may clean-up AWS resources it creates like so:
+   The `diagnose` command is designed to clean up the AWS resources it creates (EC2 instances, Lambda functions, IAM roles, Security Groups, CloudWatch Log groups) before it finishes. However, if the process terminates unexpectedly, you can manually trigger cleanup using the `clean` command. This command respects the `--mode` flag to clean up resources specific to that mode.
 
-   ```console
-   ./gitpod-network-check clean
-   INFO[0000] ✅ Main Subnets are valid
-   INFO[0000] ✅ Pod Subnets are valid
-   INFO[0000] ✅ Instances terminated
-   INFO[0000] Cleaning up: Waiting for 2 minutes so network interfaces are deleted
-   INFO[0121] ✅ Role 'GitpodNetworkCheck' deleted
-   INFO[0121] ✅ Instance profile deleted
-   INFO[0122] ✅ Security group 'sg-0a6119dcb6a564fc1' deleted
-   INFO[0122] ✅ Security group 'sg-07373362953212e54' deleted
+   ```bash
+   # Clean up resources potentially left by EC2 mode
+   ./gitpod-network-check clean --mode ec2 
+
+   # Clean up resources potentially left by Lambda mode
+   ./gitpod-network-check clean --mode lambda
    ```
+
+   **Note:** The `clean` command will *not* delete IAM roles or Security Groups if they were provided using the `--lambda-role-arn` or `--lambda-sg-id` flags during the `diagnose` run.
 
 ## FAQ
 

@@ -20,6 +20,10 @@ type NetworkConfig struct {
 	HttpsHosts  []string
 	InstanceAMI string
 	ApiEndpoint string
+
+	// Lambda-specific configuration
+	LambdaRoleArn         string
+	LambdaSecurityGroupID string
 }
 
 func (nc *NetworkConfig) GetAllSubnets() []Subnet {

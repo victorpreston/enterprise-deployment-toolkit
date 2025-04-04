@@ -16,9 +16,11 @@ import (
 	"github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check/pkg/runner"
 )
 
-var networkConfig = checks.NetworkConfig{LogLevel: "INFO"}
+// NetworkConfig holds the application configuration, populated from flags/config file
+var NetworkConfig = checks.NetworkConfig{LogLevel: "INFO"}
 
-var flags = struct {
+// Flags holds parsed flag values
+var Flags = struct {
 	// Variable to store the testsets flag value
 	SelectedTestsets []string
 
@@ -28,7 +30,8 @@ var flags = struct {
 	Mode runner.Mode
 }{}
 
-var networkCheckCmd = &cobra.Command{ // nolint:gochecknoglobals
+// NetworkCheckCmd is the root command for the application
+var NetworkCheckCmd = &cobra.Command{ // nolint:gochecknoglobals
 	PersistentPreRunE: preRunE,
 	Use:               "gitpod-network-check",
 	Short:             "CLI to check if your network is setup correctly to deploy Gitpod",
@@ -37,13 +40,16 @@ var networkCheckCmd = &cobra.Command{ // nolint:gochecknoglobals
 
 func preRunE(cmd *cobra.Command, args []string) error {
 	// setup logger
-	lvl, err := log.ParseLevel(networkConfig.LogLevel)
+	lvl, err := log.ParseLevel(NetworkConfig.LogLevel)
 	if err != nil {
 		return fmt.Errorf("❌  incorrect log level: %v", err)
 	}
 
 	log.SetLevel(lvl)
-	log.WithField("log-level", networkConfig.CfgFile).Debug("log level configured")
+	log.WithField("log-level", NetworkConfig.CfgFile).Debug("log level configured")
+
+	// Log the effective configuration after setup and binding (Moved from init)
+	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, hosts `%v`, ami `%v`, and API endpoint `%v`", NetworkConfig.AwsRegion, NetworkConfig.MainSubnets, NetworkConfig.PodSubnets, NetworkConfig.HttpsHosts, NetworkConfig.InstanceAMI, NetworkConfig.ApiEndpoint)
 
 	// validate the config
 	err = validateSubnets(cmd, args)
@@ -60,12 +66,12 @@ func preRunE(cmd *cobra.Command, args []string) error {
 }
 
 func validateSubnets(cmd *cobra.Command, args []string) error {
-	if len(networkConfig.MainSubnets) < 1 {
-		return fmt.Errorf("At least one Main subnet needs to be specified: %v", networkConfig.MainSubnets)
+	if len(NetworkConfig.MainSubnets) < 1 {
+		return fmt.Errorf("At least one Main subnet needs to be specified: %v", NetworkConfig.MainSubnets)
 	}
 	log.Info("✅ Main Subnets are valid")
-	if len(networkConfig.PodSubnets) < 1 {
-		return fmt.Errorf("At least one Pod subnet needs to be specified: %v", networkConfig.PodSubnets)
+	if len(NetworkConfig.PodSubnets) < 1 {
+		return fmt.Errorf("At least one Pod subnet needs to be specified: %v", NetworkConfig.PodSubnets)
 	}
 	log.Info("✅ Pod Subnets are valid")
 
@@ -74,11 +80,11 @@ func validateSubnets(cmd *cobra.Command, args []string) error {
 
 func validateMode(cmd *cobra.Command, args []string) error {
 	// Validate mode
-	mode, err := runner.VaildateMode(flags.ModeVar)
+	mode, err := runner.VaildateMode(Flags.ModeVar)
 	if err != nil {
 		return err
 	}
-	flags.Mode = mode
+	Flags.Mode = mode
 
 	return nil
 }
@@ -113,29 +119,33 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 func init() {
 	v := readConfigFile()
 
-	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.CfgFile, "log-level",
+	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.LogLevel, "log-level",
 		"info", "set log level verbosity (options: debug, info, error, warning)")
 
-	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.CfgFile, "config", "", "config file "+
+	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.CfgFile, "config", "", "config file "+
 		"(default is ./gitpod-network-check.yaml)")
 
-	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.AwsRegion, "region", "eu-central-1", "AWS Region to create the cell in")
-	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.MainSubnets, "main-subnets", []string{}, "List of main subnets")
-	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.PodSubnets, "pod-subnets", []string{}, "List of pod subnets")
-	networkCheckCmd.PersistentFlags().StringSliceVar(&networkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
-	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
-	networkCheckCmd.PersistentFlags().StringVar(&networkConfig.ApiEndpoint, "api-endpoint", "", "The Gitpod Enterprise control plane's regional API endpoint subdomain")
-	networkCheckCmd.PersistentFlags().StringSliceVar(&flags.SelectedTestsets, "testsets", []string{"aws-services-pod-subnet", "aws-services-main-subnet", "https-hosts-main-subnet"}, "List of testsets to run (options: aws-services-pod-subnet, aws-services-main-subnet, https-hosts-main-subnet)")
-	networkCheckCmd.PersistentFlags().StringVar(&flags.ModeVar, "mode", string(runner.ModeEC2), "How to run the tests (default: ec2, options: ec2, lambda, local)")
-	bindFlags(networkCheckCmd, v)
-	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, hosts `%v`, ami `%v`, and API endpoint `%v`", networkConfig.AwsRegion, networkConfig.MainSubnets, networkConfig.PodSubnets, networkConfig.HttpsHosts, networkConfig.InstanceAMI, networkConfig.ApiEndpoint)
+	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.AwsRegion, "region", "eu-central-1", "AWS Region to create the cell in")
+	NetworkCheckCmd.PersistentFlags().StringSliceVar(&NetworkConfig.MainSubnets, "main-subnets", []string{}, "List of main subnets")
+	NetworkCheckCmd.PersistentFlags().StringSliceVar(&NetworkConfig.PodSubnets, "pod-subnets", []string{}, "List of pod subnets")
+	NetworkCheckCmd.PersistentFlags().StringSliceVar(&NetworkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
+	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
+	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.ApiEndpoint, "api-endpoint", "", "The Gitpod Enterprise control plane's regional API endpoint subdomain")
+	NetworkCheckCmd.PersistentFlags().StringSliceVar(&Flags.SelectedTestsets, "testsets", []string{"aws-services-pod-subnet", "aws-services-main-subnet", "https-hosts-main-subnet"}, "List of testsets to run (options: aws-services-pod-subnet, aws-services-main-subnet, https-hosts-main-subnet)")
+	NetworkCheckCmd.PersistentFlags().StringVar(&Flags.ModeVar, "mode", string(runner.ModeEC2), fmt.Sprintf("How to run the tests (default: %s, options: %s, %s, %s)", runner.ModeEC2, runner.ModeEC2, runner.ModeLambda, runner.ModeLocal))
+	// Lambda-specific flags
+	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.LambdaRoleArn, "lambda-role-arn", "", "ARN of an existing IAM role to use for Lambda execution (overrides automatic creation/deletion)")
+	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.LambdaSecurityGroupID, "lambda-sg-id", "", "ID of an existing Security Group to use for Lambda execution (overrides automatic creation/deletion)")
+
+	bindFlags(NetworkCheckCmd, v)
 }
+
 
 func readConfigFile() *viper.Viper {
 	v := viper.New()
-	if networkConfig.CfgFile != "" {
+	if NetworkConfig.CfgFile != "" {
 		// Use config file from the flag.
-		v.SetConfigFile(networkConfig.CfgFile)
+		v.SetConfigFile(NetworkConfig.CfgFile)
 	} else {
 		// Find current directory.
 		currentDir := path.Dir("")
@@ -166,8 +176,7 @@ func readConfigFile() *viper.Viper {
 	return v
 }
 
+// Execute runs the root command
 func Execute() error {
-	networkCheckCmd.AddCommand(checkCommand)
-	networkCheckCmd.AddCommand(cleanCommand)
-	return networkCheckCmd.Execute()
+	return NetworkCheckCmd.Execute()
 }
