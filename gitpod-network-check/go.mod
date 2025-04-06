@@ -3,6 +3,7 @@ module github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check
 go 1.23.1
 
 require (
+	github.com/aws/aws-lambda-go v1.47.0
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.27.6
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.47.1
@@ -11,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.71.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.49.1
 	github.com/aws/smithy-go v1.22.2
+	github.com/google/go-cmp v0.6.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
