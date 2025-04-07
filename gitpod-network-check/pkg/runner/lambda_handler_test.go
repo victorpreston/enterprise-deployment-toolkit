@@ -1,4 +1,4 @@
-package cmd
+package runner
 
 import (
 	"context"
@@ -133,7 +133,7 @@ func TestHandleLambdaEvent(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt // Capture range variable
 		t.Run(tt.name, func(t *testing.T) {
-			actualResp, err := handleLambdaEvent(context.Background(), tt.request)
+			actualResp, err := HandleLambdaEvent(context.Background(), tt.request)
 			if err != nil {
 				t.Errorf("handleLambdaEvent returned an unexpected error: %v", err)
 			}
