@@ -410,19 +410,16 @@ echo "Bootstrap: Running %s lambda-handler" >&2
 // respecting the LambdaRoleArn config if provided.
 // Returns the Role ARN, a boolean indicating if the role was created in this call, and an error.
 func (r *LambdaTestRunner) getOrCreateLambdaRole(ctx context.Context) (*string, bool, error) {
-	roleName := lambdaRoleName // Default name for managed role
-	roleArnString := ""        // To store the final ARN
-
 	// Check if a specific Role ARN is provided in the config
 	if r.config.LambdaRoleArn != "" {
-		roleArnString = r.config.LambdaRoleArn
+		roleArnString := r.config.LambdaRoleArn
 		log.Infof("Using pre-configured Lambda IAM Role ARN: %s", roleArnString)
 		// Extract role name from ARN for GetRole/UpdateAssumeRolePolicy calls
 		arnParts := strings.Split(roleArnString, "/")
 		if len(arnParts) < 2 {
 			return nil, false, fmt.Errorf("invalid pre-configured role ARN format: %s", roleArnString)
 		}
-		roleName = arnParts[len(arnParts)-1]
+		roleName := arnParts[len(arnParts)-1]
 		log.Debugf("Extracted role name from provided ARN: %s", roleName)
 
 		// Validate the role exists and check/update its trust policy
@@ -450,7 +447,7 @@ func (r *LambdaTestRunner) getOrCreateLambdaRole(ctx context.Context) (*string, 
 	}
 
 	// No specific ARN provided, proceed with get-or-create logic for the managed role
-	roleName = lambdaRoleName // Assign to existing variable, not redeclare
+	roleName := lambdaRoleName // Assign to existing variable, not redeclare
 	log.Infof("Checking for managed IAM role: %s", roleName)
 
 	// Try to get the role first
@@ -975,7 +972,7 @@ func (r *LambdaTestRunner) TestService(ctx context.Context, subnets []checks.Sub
 
 		// Log Lambda execution logs if available
 		if invokeOutput.LogResult != nil {
-			log.Debugf("Lambda logs for %s (Subnet: %s):\n%s", functionArn, cleanSubnetID, *invokeOutput.LogResult) // Use cleanSubnetID in log
+			log.Tracef("Lambda logs for %s (Subnet: %s):\n%s", functionArn, cleanSubnetID, *invokeOutput.LogResult) // Use cleanSubnetID in log
 		}
 
 		if invokeOutput.FunctionError != nil {
@@ -1063,16 +1060,23 @@ func (r *LambdaTestRunner) Cleanup(ctx context.Context) error {
 		sgID := *r.securityGroupID
 		log.Infof("Searching for Network Interfaces attached to managed Security Group %s...", sgID)
 
-		eniAttachments, err := r.findNetworkInterfacesForSecurityGroup(ctx, sgID)
+		enis, err := r.findNetworkInterfacesForSecurityGroup(ctx, sgID)
 		if err != nil {
 			log.WithError(err).Errorf("❌ Failed to find network interfaces for SG %s. Skipping ENI cleanup.", sgID)
-		} else if len(eniAttachments) > 0 {
-			log.Infof("Found %d Network Interface(s) associated with SG %s. Attempting detachment and deletion...", len(eniAttachments), sgID)
-			for eniID, attachmentID := range eniAttachments {
-				log.Infof("Processing ENI '%s' with attachment ID '%s'...", eniID, attachmentID)
-				// if strings.HasPrefix(attachmentID, "ela-attach-") {
-				// 	log.Infof("Leaving attachment ID '%s' as-is, as it will be automatically removed once the lambda is gone", attachmentID)
-				// } else
+		} else if len(enis) > 0 {
+			log.Infof("Found %d Network Interface(s) associated with SG %s. Attempting detachment and deletion...", len(enis), sgID)
+			for eniID, eni := range enis {
+				log.Infof("Processing ENI '%s' (status: %s) with attachment ID '%s' (status: %s)...", eniID, eni.eniStatus, eni.attachmentID, eni.attachmentStatus)
+				if strings.HasPrefix(eni.attachmentID, "ela-attach-") {
+					log.Infof("Leaving attachment ID '%s' as-is, as it will be automatically removed once the lambda is gone", eni.attachmentID)
+					continue
+				}
+				if strings.HasPrefix(eni.description, "AWS Lambda") {
+					log.Infof("Leaving ENI '%s' as-is, as it is an AWS Lambda that is cleaned up automatically", eniID)
+					continue
+				}
+
+				attachmentID := eni.attachmentID
 				if attachmentID != "" {
 					detachInput := &ec2.DetachNetworkInterfaceInput{
 						AttachmentId: aws.String(attachmentID),
@@ -1110,28 +1114,29 @@ func (r *LambdaTestRunner) Cleanup(ctx context.Context) error {
 
 	// 3. Delete Security Group (only if managed by this tool, i.e., not provided via config)
 	// Now attempt SG deletion *after* ENI cleanup attempt
-	if r.securityGroupID != nil && r.config.LambdaSecurityGroupID == "" {
-		sgID := *r.securityGroupID
-		log.Infof("Deleting managed Security Group %s...", sgID)
-		deleteSGInput := &ec2.DeleteSecurityGroupInput{
-			GroupId: r.securityGroupID,
-		}
-		_, err := r.ec2Client.DeleteSecurityGroup(ctx, deleteSGInput)
-		if err != nil {
-			var apiErr smithy.APIError
-			if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.NotFound" {
-				log.Warnf("Security Group %s not found, likely already deleted.", sgID)
-			} else {
-				log.Errorf("❌ Failed to delete Security Group %s: %v", sgID, err)
-				cleanupErrors = append(cleanupErrors, fmt.Errorf("failed to delete security group %s: %w", sgID, err))
-			}
-		} else {
-			log.Infof("✅ Deleted Security Group %s", sgID)
-		}
-	} else if r.config.LambdaSecurityGroupID != "" { // Check if SG was provided via config
+	// if r.securityGroupID != nil && r.config.LambdaSecurityGroupID == "" {
+	// 	sgID := *r.securityGroupID
+	// 	log.Infof("Deleting managed Security Group %s...", sgID)
+	// 	deleteSGInput := &ec2.DeleteSecurityGroupInput{
+	// 		GroupId: r.securityGroupID,
+	// 	}
+	// 	_, err := r.ec2Client.DeleteSecurityGroup(ctx, deleteSGInput)
+	// 	if err != nil {
+	// 		var apiErr smithy.APIError
+	// 		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.NotFound" {
+	// 			log.Warnf("Security Group %s not found, likely already deleted.", sgID)
+	// 		} else {
+	// 			log.Errorf("❌ Failed to delete Security Group %s: %v", sgID, err)
+	// 			cleanupErrors = append(cleanupErrors, fmt.Errorf("failed to delete security group %s: %w", sgID, err))
+	// 		}
+	// 	} else {
+	// 		log.Infof("✅ Deleted Security Group %s", sgID)
+	// 	}
+	// } else
+	if r.config.LambdaSecurityGroupID != "" { // Check if SG was provided via config
 		log.Infof("Skipping deletion of user-provided Security Group: %s", r.config.LambdaSecurityGroupID)
-	} else { // Neither managed nor provided (or r.securityGroupID was nil initially)
-		log.Info("No managed Security Group ID recorded to delete.")
+	} else {
+		log.Info("No deleting created SecurityGroup as it's garbage collected by AWS.")
 	}
 
 	// 4. Delete IAM Role (only if managed by this tool, i.e., not provided via config)
@@ -1229,10 +1234,18 @@ func getFunctionNameFromARN(arn string) string {
 	return ""
 }
 
+type networkInterface struct {
+	eniID            string
+	eniStatus        ec2types.NetworkInterfaceStatus
+	description      string
+	attachmentID     string
+	attachmentStatus ec2types.AttachmentStatus
+}
+
 // findNetworkInterfacesForSecurityGroup finds ENIs and their Attachment IDs associated with a specific security group.
 // Returns a map[eniID]attachmentID.
-func (r *LambdaTestRunner) findNetworkInterfacesForSecurityGroup(ctx context.Context, sgID string) (map[string]string, error) {
-	eniAttachments := make(map[string]string)
+func (r *LambdaTestRunner) findNetworkInterfacesForSecurityGroup(ctx context.Context, sgID string) (map[string]*networkInterface, error) {
+	eniAttachments := make(map[string]*networkInterface)
 	input := &ec2.DescribeNetworkInterfacesInput{
 		Filters: []ec2types.Filter{
 			{
@@ -1256,14 +1269,16 @@ func (r *LambdaTestRunner) findNetworkInterfacesForSecurityGroup(ctx context.Con
 			}
 
 			eniID := *eni.NetworkInterfaceId
-			var attachmentId string
-			attachementStatus := ""
-			if eni.Attachment != nil && eni.Attachment.AttachmentId != nil {
-				attachementStatus = string(eni.Attachment.Status)
-				attachmentId = *eni.Attachment.AttachmentId
+			nif := networkInterface{
+				eniID:       eniID,
+				description: *eni.Description,
+				eniStatus:   eni.Status,
 			}
-			log.Infof("Found ENI %s with Attachment ID %s for SG %s (status: %s, attachementStatus: %s)", eniID, attachmentId, sgID, eni.Status, attachementStatus)
-			eniAttachments[eniID] = attachmentId
+			if eni.Attachment != nil && eni.Attachment.AttachmentId != nil {
+				nif.attachmentStatus = eni.Attachment.Status
+				nif.attachmentID = *eni.Attachment.AttachmentId
+			}
+			eniAttachments[eniID] = &nif
 		}
 	}
 	return eniAttachments, nil

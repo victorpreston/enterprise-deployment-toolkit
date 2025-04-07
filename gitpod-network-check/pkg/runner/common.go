@@ -14,25 +14,25 @@ import (
 	"github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check/pkg/checks"
 )
 
-type Mode string
+type RunnerType string
 
 const (
-	ModeEC2    Mode = "ec2"
-	ModeLambda Mode = "lambda"
-	ModeLocal  Mode = "local"
+	RunnerTypeEC2    RunnerType = "ec2"
+	RunnerTypeLambda RunnerType = "lambda"
+	RunnerTypeLocal  RunnerType = "local"
 )
 
-var validModes = map[string]bool{
-	string(ModeLambda): true,
-	string(ModeEC2):    true,
-	string(ModeLocal):  true,
+var validRunnerType = map[string]bool{
+	string(RunnerTypeLambda): true,
+	string(RunnerTypeEC2):    true,
+	string(RunnerTypeLocal):  true,
 }
 
-func VaildateMode(modeStr string) (Mode, error) {
-	if _, ok := validModes[modeStr]; ok {
-		return Mode(modeStr), nil
+func ValidateRunnerType(runnerStr string) (RunnerType, error) {
+	if _, ok := validRunnerType[runnerStr]; ok {
+		return RunnerType(runnerStr), nil
 	}
-	return "", fmt.Errorf("invalid mode: %s, must be one of: %v", modeStr, slices.Collect(maps.Keys(validModes)))
+	return "", fmt.Errorf("invalid runner: %s, must be one of: %v", runnerStr, slices.Collect(maps.Keys(validRunnerType)))
 }
 
 type TestRunner interface {
@@ -41,32 +41,34 @@ type TestRunner interface {
 	Cleanup(ctx context.Context) error
 }
 
-func NewRunner(ctx context.Context, mode Mode, config *checks.NetworkConfig) (TestRunner, error) {
+func NewRunner(ctx context.Context, mode RunnerType, config *checks.NetworkConfig) (TestRunner, error) {
 	switch mode {
-	case ModeEC2:
+	case RunnerTypeEC2:
 		return NewEC2TestRunner(context.Background(), config)
-	case ModeLocal:
+	case RunnerTypeLocal:
 		return NewLocalTestRunner(), nil
-	case ModeLambda:
+	case RunnerTypeLambda:
 		return NewLambdaTestRunner(ctx, config)
 	default:
-		return nil, fmt.Errorf("invalid mode: %s, must be one of: %v", mode, slices.Collect(maps.Keys(validModes)))
+		// Update error message
+		return nil, fmt.Errorf("invalid runner: %s, must be one of: %v", mode, slices.Collect(maps.Keys(validRunnerType)))
 	}
 }
 
 // Creates a new TestRunner instance, loading existing resources from the AWS account by known name/tags.
 // This is useful for cleaning up left-over resources from previous runs.
-func LoadRunnerFromTags(ctx context.Context, mode Mode, networkConfig *checks.NetworkConfig) (TestRunner, error) {
+func LoadRunnerFromTags(ctx context.Context, mode RunnerType, networkConfig *checks.NetworkConfig) (TestRunner, error) {
 	switch mode {
-	case ModeEC2:
+	case RunnerTypeEC2:
 		return LoadEC2RunnerFromTags(ctx, networkConfig)
-	case ModeLambda:
+	case RunnerTypeLambda:
 		return LoadLambdaRunnerFromTags(ctx, networkConfig) // Call the new function
-	case ModeLocal:
+	case RunnerTypeLocal:
 		// Local mode does not require any AWS resources, so we can just return a new instance.
 		return NewLocalTestRunner(), nil
 	default:
-		return nil, fmt.Errorf("invalid mode: %s, must be one of: %v", mode, slices.Collect(maps.Keys(validModes)))
+		// Update error message
+		return nil, fmt.Errorf("invalid runner: %s, must be one of: %v", mode, slices.Collect(maps.Keys(validRunnerType)))
 	}
 }
 

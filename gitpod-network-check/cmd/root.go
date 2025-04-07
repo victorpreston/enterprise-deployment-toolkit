@@ -24,10 +24,10 @@ var Flags = struct {
 	// Variable to store the testsets flag value
 	SelectedTestsets []string
 
-	// Variable to store the mode flag value
-	ModeVar string
+	// Variable to store the runner flag value
+	RunnerTypeStr string
 
-	Mode runner.Mode
+	RunnerType runner.RunnerType
 }{}
 
 // NetworkCheckCmd is the root command for the application
@@ -52,20 +52,20 @@ func preRunE(cmd *cobra.Command, args []string) error {
 	log.Infof("ℹ️  Running with region `%s`, main subnet `%v`, pod subnet `%v`, hosts `%v`, ami `%v`, and API endpoint `%v`", NetworkConfig.AwsRegion, NetworkConfig.MainSubnets, NetworkConfig.PodSubnets, NetworkConfig.HttpsHosts, NetworkConfig.InstanceAMI, NetworkConfig.ApiEndpoint)
 
 	// validate the config
-	err = validateSubnets(cmd, args)
+	err = validateSubnetsConfig(cmd, args)
 	if err != nil {
 		return fmt.Errorf("❌  incorrect subnets: %v", err)
 	}
 
-	err = validateMode(cmd, args)
+	err = validateRunnerFlag(cmd, args)
 	if err != nil {
-		return fmt.Errorf("❌  incorrect mode: %v", err)
+		return fmt.Errorf("❌  incorrect runner: %v", err) // Update error message context
 	}
 
 	return nil
 }
 
-func validateSubnets(cmd *cobra.Command, args []string) error {
+func validateSubnetsConfig(cmd *cobra.Command, args []string) error {
 	if len(NetworkConfig.MainSubnets) < 1 {
 		return fmt.Errorf("At least one Main subnet needs to be specified: %v", NetworkConfig.MainSubnets)
 	}
@@ -78,13 +78,13 @@ func validateSubnets(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func validateMode(cmd *cobra.Command, args []string) error {
-	// Validate mode
-	mode, err := runner.VaildateMode(Flags.ModeVar)
+func validateRunnerFlag(cmd *cobra.Command, args []string) error {
+	// Validate runnerType
+	runnerType, err := runner.ValidateRunnerType(Flags.RunnerTypeStr)
 	if err != nil {
 		return err
 	}
-	Flags.Mode = mode
+	Flags.RunnerType = runnerType
 
 	return nil
 }
@@ -132,14 +132,14 @@ func init() {
 	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
 	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.ApiEndpoint, "api-endpoint", "", "The Gitpod Enterprise control plane's regional API endpoint subdomain")
 	NetworkCheckCmd.PersistentFlags().StringSliceVar(&Flags.SelectedTestsets, "testsets", []string{"aws-services-pod-subnet", "aws-services-main-subnet", "https-hosts-main-subnet"}, "List of testsets to run (options: aws-services-pod-subnet, aws-services-main-subnet, https-hosts-main-subnet)")
-	NetworkCheckCmd.PersistentFlags().StringVar(&Flags.ModeVar, "mode", string(runner.ModeEC2), fmt.Sprintf("How to run the tests (default: %s, options: %s, %s, %s)", runner.ModeEC2, runner.ModeEC2, runner.ModeLambda, runner.ModeLocal))
+	// Rename flag, variable, and update help text
+	NetworkCheckCmd.PersistentFlags().StringVar(&Flags.RunnerTypeStr, "runner", string(runner.RunnerTypeEC2), fmt.Sprintf("Specify the runner for executing tests (default: %s, options: %s, %s, %s)", runner.RunnerTypeEC2, runner.RunnerTypeEC2, runner.RunnerTypeLambda, runner.RunnerTypeLocal))
 	// Lambda-specific flags
 	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.LambdaRoleArn, "lambda-role-arn", "", "ARN of an existing IAM role to use for Lambda execution (overrides automatic creation/deletion)")
 	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.LambdaSecurityGroupID, "lambda-sg-id", "", "ID of an existing Security Group to use for Lambda execution (overrides automatic creation/deletion)")
 
 	bindFlags(NetworkCheckCmd, v)
 }
-
 
 func readConfigFile() *viper.Viper {
 	v := viper.New()

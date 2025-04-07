@@ -55,17 +55,17 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
 2. Run the network diagnosis
 
-   The tool supports different modes for running the checks, specified by the `--mode` flag (`ec2`, `lambda`, `local`).
+   The tool supports different runners for executing the checks, specified by the `--runner` flag (`ec2`, `lambda`, `local`).
 
-   **Using EC2 Mode (Default):**
+   **Using EC2 Runner (Default):**
 
    This mode launches temporary EC2 instances in your specified subnets to perform the network checks. This most closely simulates the environment where Gitpod components will run.
 
-   To start the diagnosis using EC2 mode: `./gitpod-network-check diagnose --mode ec2` (or simply `./gitpod-network-check diagnose` as EC2 is the default).
+   To start the diagnosis using the EC2 runner: `./gitpod-network-check diagnose --runner ec2` (or simply `./gitpod-network-check diagnose` as EC2 is the default).
 
    ```console
-   # Example output for EC2 mode
-   ./gitpod-network-check diagnose --mode ec2
+   # Example output for EC2 runner
+   ./gitpod-network-check diagnose --runner ec2
    INFO[0000] ℹ️  Running with region `eu-central-1`, main subnet `[subnet-0ed211f14362b224f  subnet-041703e62a05d2024]`, pod subnet `[subnet-075c44edead3b062f  subnet-06eb311c6b92e0f29]`, hosts `[accounts.google.com  https://github.com]`, ami ``, and API endpoint `` 
    INFO[0000] ✅ Main Subnets are valid                     
    INFO[0000] ✅ Pod Subnets are valid                      
@@ -127,7 +127,7 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
    INFO[0306] ✅ Security group 'sg-00d4a66a7840ebd67' deleted 
    ```
 
-   **Using Lambda Mode:**
+   **Using Lambda Runner:**
 
    This mode uses AWS Lambda functions deployed into your specified subnets to perform the network checks. It avoids the need to launch full EC2 instances but has its own prerequisites.
 
@@ -135,39 +135,39 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
        *   **IAM Permissions:** The AWS credentials used to run `gitpod-network-check` need permissions to manage Lambda functions, IAM roles, security groups, and CloudWatch Logs. Specifically, it needs to perform actions like: `lambda:CreateFunction`, `lambda:GetFunction`, `lambda:DeleteFunction`, `lambda:InvokeFunction`, `iam:CreateRole`, `iam:GetRole`, `iam:DeleteRole`, `iam:AttachRolePolicy`, `iam:DetachRolePolicy`, `ec2:CreateSecurityGroup`, `ec2:DescribeSecurityGroups`, `ec2:DeleteSecurityGroup`, `ec2:AuthorizeSecurityGroupEgress`, `ec2:DescribeSubnets`, `logs:DeleteLogGroup`.
        *   **Network Connectivity:** Lambda functions running within a VPC need a route to the internet or required AWS service endpoints. This typically requires a **NAT Gateway** in your VPC or **VPC Endpoints** for all necessary services (e.g., STS, CloudWatch Logs, ECR, S3, DynamoDB, and any target HTTPS hosts). Without proper outbound connectivity, the Lambda checks will fail.
 
-   *   **Running Lambda Mode:**
-       To start the diagnosis using Lambda mode:
+   *   **Running Lambda Runner:**
+       To start the diagnosis using the Lambda runner:
        ```bash
-       ./gitpod-network-check diagnose --mode lambda
+       ./gitpod-network-check diagnose --runner lambda
        ```
 
-   *   **Using Existing Resources (Lambda Mode):**
+   *   **Using Existing Resources (Lambda Runner):**
        If you have pre-existing IAM roles or Security Groups you want the Lambda functions to use, you can specify them using flags. This will prevent the tool from creating or deleting these specific resources.
        ```bash
-       ./gitpod-network-check diagnose --mode lambda \
+       ./gitpod-network-check diagnose --runner lambda \
          --lambda-role-arn arn:aws:iam::123456789012:role/MyExistingLambdaRole \
          --lambda-sg-id sg-0123456789abcdef0 
        ```
 
-   *   **Example Output (Lambda Mode):**
-       The output will be similar to EC2 mode but will show Lambda function creation/invocation instead of EC2 instance management.
+   *   **Example Output (Lambda Runner):**
+       The output will be similar to EC2 runner but will show Lambda function creation/invocation instead of EC2 instance management.
 
-   **Using Local Mode:**
+   **Using Local Runner:**
 
    This mode runs the checks directly from the machine where you execute the CLI. It's useful for basic outbound connectivity tests but **does not** accurately reflect the network environment within your AWS subnets.
 
-   To start the diagnosis using local mode: `./gitpod-network-check diagnose --mode local`
+   To start the diagnosis using the local runner: `./gitpod-network-check diagnose --runner local`
 
 3. Clean up after network diagnosis
 
-   The `diagnose` command is designed to clean up the AWS resources it creates (EC2 instances, Lambda functions, IAM roles, Security Groups, CloudWatch Log groups) before it finishes. However, if the process terminates unexpectedly, you can manually trigger cleanup using the `clean` command. This command respects the `--mode` flag to clean up resources specific to that mode.
+   The `diagnose` command is designed to clean up the AWS resources it creates (EC2 instances, Lambda functions, IAM roles, Security Groups, CloudWatch Log groups) before it finishes. However, if the process terminates unexpectedly, you can manually trigger cleanup using the `clean` command. This command respects the `--runner` flag to clean up resources specific to that runner.
 
    ```bash
-   # Clean up resources potentially left by EC2 mode
-   ./gitpod-network-check clean --mode ec2 
+   # Clean up resources potentially left by the EC2 runner
+   ./gitpod-network-check clean --runner ec2 
 
-   # Clean up resources potentially left by Lambda mode
-   ./gitpod-network-check clean --mode lambda
+   # Clean up resources potentially left by the Lambda runner
+   ./gitpod-network-check clean --runner lambda
    ```
 
    **Note:** The `clean` command will *not* delete IAM roles or Security Groups if they were provided using the `--lambda-role-arn` or `--lambda-sg-id` flags during the `diagnose` run.
