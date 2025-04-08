@@ -17,7 +17,7 @@ var cleanCommand = &cobra.Command{ // nolint:gochecknoglobals
 		ctx := cmd.Context()
 
 		log.Infof("ℹ️ Running cleanup")
-		runner, err := runner.LoadRunnerFromTags(ctx, Flags.Mode, &NetworkConfig)
+		runner, err := runner.LoadRunnerFromTags(ctx, Flags.RunnerType, &NetworkConfig)
 		if err != nil {
 			return fmt.Errorf("❌  failed to create test runner: %v", err)
 		}

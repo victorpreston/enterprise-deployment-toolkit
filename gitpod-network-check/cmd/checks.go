@@ -27,7 +27,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		runner, err := testrunner.NewRunner(ctx, Flags.Mode, &NetworkConfig)
+		runner, err := testrunner.NewRunner(ctx, Flags.RunnerType, &NetworkConfig)
 		if err != nil {
 			return fmt.Errorf("❌  failed to create test runner: %v", err)
 		}
