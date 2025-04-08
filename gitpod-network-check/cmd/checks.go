@@ -62,7 +62,7 @@ var checkCommand = &cobra.Command{ // nolint:gochecknoglobals
 
 			ts := checks.TestSets[checks.TestsetName(testset)]
 			serviceEndpoints, subnetType := ts(&NetworkConfig)
-			subnets := Filter(NetworkConfig.GetAllSubnets(), func(subnet checks.Subnet) bool { 
+			subnets := Filter(NetworkConfig.GetAllSubnets(), func(subnet checks.Subnet) bool {
 				return subnet.Type == subnetType
 			})
 
