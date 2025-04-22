@@ -34,17 +34,20 @@ A CLI to check if your network setup is suitable for the installation of Gitpod.
 
 1. Preparation
 
-   To run a diagnosis of the network that you want to use for Gitpod, the CLI command needs to know the subnets you have chosen to be used as the `Main` subnets and the `Pod` subnets. You can read more about the distinction here in [our docs](https://www.gitpod.io/docs/enterprise/getting-started/networking#2-subnet-separation). The CLI expects to read the IDs of these subnets in a configuration file. By default it tries to read it from a file name `gitpod-network-check.yaml` in your current directory, but you can override this behavior by using the `--config` flag of the CLI.
+   To run a diagnosis of the network that you want to use for Gitpod, the CLI command needs to know the subnets you have chosen to be used as the `Main` subnets. You can read more about those here in [our docs](https://www.gitpod.io/docs/enterprise/getting-started/networking#2-subnet-separation). The CLI expects to read the IDs of these subnets in a configuration file. By default it tries to read it from a file name `gitpod-network-check.yaml` in your current directory, but you can override this behavior by using the `--config` flag of the CLI.
 
    For the sake of simplicity, let us create a file `gitpod-network-check.yaml` in the current directory and populate it with the subnet IDs and AWS region as shown below:
    ```yaml
    log-level: debug # Options: debug, info, warning, error
    region: eu-central-1
    main-subnets: subnet-0554e84f033a64c56, subnet-08584621e7754e505, subnet-094c6fd68aea493b7
-   pod-subnets: subnet-028d11dce93b8eefc, subnet-04ec8257d95c434b7,subnet-00a83550ce709f39c
    https-hosts: accounts.google.com, github.com
-   instance-ami: # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
    api-endpoint: # optional, put your API endpoint regional sub-domain here to test connectivity, like when the execute-api vpc endpoint is not in the same account as Gitpod
+
+   ## EC2 runner
+   #instance-ami: # put your custom ami id here if you want to use it, otherwise it will using latest ubuntu AMI from aws
+
+   ## Lambda runner
    # lambda-role-arn: arn:aws:iam::123456789012:role/MyExistingLambdaRole # Optional: Use existing IAM Role for Lambda mode
    # lambda-sg-id: sg-0123456789abcdef0 # Optional: Use existing Security Group for Lambda mode
    ```

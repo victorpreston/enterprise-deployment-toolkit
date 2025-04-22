@@ -131,7 +131,8 @@ func init() {
 	NetworkCheckCmd.PersistentFlags().StringSliceVar(&NetworkConfig.HttpsHosts, "https-hosts", []string{}, "Hosts to test for outbound HTTPS connectivity")
 	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.InstanceAMI, "instance-ami", "", "Custom ec2 instance AMI id, if not set will use latest ubuntu")
 	NetworkCheckCmd.PersistentFlags().StringVar(&NetworkConfig.ApiEndpoint, "api-endpoint", "", "The Gitpod Enterprise control plane's regional API endpoint subdomain")
-	NetworkCheckCmd.PersistentFlags().StringSliceVar(&Flags.SelectedTestsets, "testsets", []string{"aws-services-pod-subnet", "aws-services-main-subnet", "https-hosts-main-subnet"}, "List of testsets to run (options: aws-services-pod-subnet, aws-services-main-subnet, https-hosts-main-subnet)")
+	testsetOptions := []string{string(checks.TestsetNameAwsServicesApp), string(checks.TestSetNameAwsServicesSubstrate), string(checks.TestSetNameHttpsHosts)}
+	NetworkCheckCmd.PersistentFlags().StringSliceVar(&Flags.SelectedTestsets, "testsets", testsetOptions, fmt.Sprintf("List of testsets to run (options: %v)", testsetOptions))
 	// Rename flag, variable, and update help text
 	NetworkCheckCmd.PersistentFlags().StringVar(&Flags.RunnerTypeStr, "runner", string(runner.RunnerTypeEC2), fmt.Sprintf("Specify the runner for executing tests (default: %s, options: %s, %s, %s)", runner.RunnerTypeEC2, runner.RunnerTypeEC2, runner.RunnerTypeLambda, runner.RunnerTypeLocal))
 	// Lambda-specific flags

@@ -40,9 +40,9 @@ func (nc *NetworkConfig) GetAllSubnets() []Subnet {
 type TestsetName string
 
 const (
-	TestsetNameAwsServicesPodSubnet  TestsetName = "aws-services-pod-subnet"
-	TestSetNameAwsServicesMainSubnet TestsetName = "aws-services-main-subnet"
-	TestSetNameHttpsHostsMainSubnet  TestsetName = "https-hosts-main-subnet"
+	TestsetNameAwsServicesApp       TestsetName = "aws-services-app"
+	TestSetNameAwsServicesSubstrate TestsetName = "aws-services-substrate"
+	TestSetNameHttpsHosts           TestsetName = "https-hosts"
 )
 
 type SubnetType string
@@ -79,10 +79,11 @@ func (sns Subnets) String() string {
 	return strings.Join(result, ", ")
 }
 
+// TODO(gpl) We should re-consider the assignment of the subnet type to a test-set. For BYON, it's actually only all from main only.
 type TestSet func(networkConfig *NetworkConfig) (endpoints map[string]string, subnetType SubnetType)
 
 var TestSets = map[TestsetName]TestSet{
-	TestsetNameAwsServicesPodSubnet: func(networkConfig *NetworkConfig) (map[string]string, SubnetType) {
+	TestsetNameAwsServicesApp: func(networkConfig *NetworkConfig) (map[string]string, SubnetType) {
 		return map[string]string{
 			"SSM":                   fmt.Sprintf("https://ssm.%s.amazonaws.com", networkConfig.AwsRegion),
 			"SSMmessages":           fmt.Sprintf("https://ssmmessages.%s.amazonaws.com", networkConfig.AwsRegion),
@@ -99,19 +100,21 @@ var TestSets = map[TestsetName]TestSet{
 			"Sts":                   fmt.Sprintf("https://sts.%s.amazonaws.com", networkConfig.AwsRegion),
 			"ECR Api":               fmt.Sprintf("https://api.ecr.%s.amazonaws.com", networkConfig.AwsRegion),
 			"ECR":                   fmt.Sprintf("https://869456089606.dkr.ecr.%s.amazonaws.com", networkConfig.AwsRegion),
-		}, SubnetTypePod
+		}, SubnetTypeMain
 	},
-	TestSetNameAwsServicesMainSubnet: func(networkConfig *NetworkConfig) (map[string]string, SubnetType) {
+	TestSetNameAwsServicesSubstrate: func(networkConfig *NetworkConfig) (map[string]string, SubnetType) {
 		endpoints := map[string]string{
 			"S3":       fmt.Sprintf("https://s3.%s.amazonaws.com", networkConfig.AwsRegion),
 			"DynamoDB": fmt.Sprintf("https://dynamodb.%s.amazonaws.com", networkConfig.AwsRegion),
 		}
 		if networkConfig.ApiEndpoint != "" {
 			endpoints["ExecuteAPI"] = fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com", networkConfig.ApiEndpoint, networkConfig.AwsRegion)
+		} else {
+			log.Warnf("🚧 No execute-api endpoint provided, skipping test")
 		}
 		return endpoints, SubnetTypeMain
 	},
-	TestSetNameHttpsHostsMainSubnet: func(networkConfig *NetworkConfig) (map[string]string, SubnetType) {
+	TestSetNameHttpsHosts: func(networkConfig *NetworkConfig) (map[string]string, SubnetType) {
 		endpoints := map[string]string{}
 		for _, v := range networkConfig.HttpsHosts {
 			host := strings.TrimSpace(v)
