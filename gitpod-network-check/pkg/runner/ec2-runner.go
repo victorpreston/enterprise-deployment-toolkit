@@ -305,8 +305,18 @@ func (r *EC2TestRunner) isServiceAvailable(ctx context.Context, instanceIds []st
 
 	g, ctx := errgroup.WithContext(context.Background())
 	for _, instanceId := range instanceIds {
-		id := instanceId // Local variable for the closure
+		id := instanceId
 		g.Go(func() error {
+			// wait up until 30s for each command to actually execute
+			waiter := ssm.NewCommandExecutedWaiter(r.ssmClient)
+			err := waiter.Wait(ctx, &ssm.GetCommandInvocationInput{
+				CommandId:  aws.String(commandId),
+				InstanceId: aws.String(id),
+			}, *aws.Duration(30 * time.Second))
+			if err != nil {
+				return fmt.Errorf("error waiting for command to finish: %v", err)
+			}
+
 			return fetchResultsForInstance(ctx, r.ssmClient, id, commandId)
 		})
 	}
@@ -439,9 +449,30 @@ func findUbuntuAMI(ctx context.Context, client *ec2.Client) (string, error) {
 
 func ensureSessionManagerIsUp(ctx context.Context, ssmClient *ssm.Client, instanceIds []string) error {
 	err := wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 2*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-		_, err = sendCommand(ctx, ssmClient, instanceIds, "echo ssm")
+		commandId, err := sendCommand(ctx, ssmClient, instanceIds, "echo ssm")
 		if err != nil {
 			return false, nil
+		}
+
+		// wait for 10s for the command to actually execute
+		g, ctx := errgroup.WithContext(context.Background())
+		for _, iid := range instanceIds {
+			instanceId := iid
+			g.Go(func() error {
+				waiter := ssm.NewCommandExecutedWaiter(ssmClient)
+				err := waiter.Wait(ctx, &ssm.GetCommandInvocationInput{
+					CommandId:  aws.String(commandId),
+					InstanceId: aws.String(instanceId),
+				}, *aws.Duration(10 * time.Second))
+				if err != nil {
+					return fmt.Errorf("error waiting for command to finish: %v", err)
+				}
+				return nil
+			})
+		}
+		err = g.Wait()
+		if err != nil {
+			return false, fmt.Errorf("error waiting for SessionManager to run test command: %v", err)
 		}
 
 		return true, nil
@@ -675,7 +706,7 @@ func fetchResultsForInstance(ctx context.Context, svc *ssm.Client, instanceId, c
 			log.Debugf("✅ Instance %s command output:\n%s\n", instanceId, *invocationResult.StandardOutputContent)
 			return true, nil
 		} else {
-			log.Errorf("❌ Instance %s command with status %s not successful:\n%s\n", instanceId, *invocationResult.StatusDetails, *invocationResult.StandardErrorContent)
+			log.Errorf("❌ Instance %s command with status %s, not successful:\n%s\n", instanceId, *invocationResult.StatusDetails, *invocationResult.StandardErrorContent)
 			return false, fmt.Errorf("instance %s command failed: %s", instanceId, *invocationResult.StandardErrorContent)
 		}
 	})
