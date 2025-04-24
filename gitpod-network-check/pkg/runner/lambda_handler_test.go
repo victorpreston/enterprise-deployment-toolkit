@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gitpod-io/enterprise-deployment-toolkit/gitpod-network-check/pkg/lambda_types"
-	cmp "github.com/google/go-cmp/cmp" // Added for deep comparison
+	cmp "github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -140,6 +140,113 @@ func TestHandleLambdaEvent(t *testing.T) {
 
 			if diff := cmp.Diff(tt.expectedResp, actualResp); diff != "" {
 				t.Errorf("handleLambdaEvent response mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestParseAWSEndpoint(t *testing.T) {
+	// Define a struct for expected outputs and to capture actual results
+	type expectation struct {
+		Service string
+		Region  string
+		Err     bool
+	}
+
+	// Define test cases
+	tests := []struct {
+		name     string
+		hostname string
+		expect   expectation
+	}{
+		{
+			name:     "standard service region format",
+			hostname: "eks.eu-central-1.amazonaws.com",
+			expect: expectation{
+				Service: "eks",
+				Region:  "eu-central-1",
+				Err:     false,
+			},
+		},
+		{
+			name:     "global service format",
+			hostname: "s3.amazonaws.com",
+			expect: expectation{
+				Service: "s3",
+				Region:  "us-east-1", // Default region for global services
+				Err:     false,
+			},
+		},
+		{
+			name:     "ecr format with account id",
+			hostname: "123456789012.dkr.ecr.eu-west-1.amazonaws.com",
+			expect: expectation{
+				Service: "ecr",
+				Region:  "eu-west-1",
+				Err:     false,
+			},
+		},
+		{
+			name:     "api gateway format",
+			hostname: "abcdef123.execute-api.us-east-1.amazonaws.com",
+			expect: expectation{
+				Service: "execute-api",
+				Region:  "us-east-1",
+				Err:     false,
+			},
+		},
+		{
+			name:     "api ecr format",
+			hostname: "api.ecr.us-west-2.amazonaws.com",
+			expect: expectation{
+				Service: "ecr",
+				Region:  "us-west-2",
+				Err:     false,
+			},
+		},
+		{
+			name:     "non-aws hostname",
+			hostname: "example.com",
+			expect: expectation{
+				Service: "",
+				Region:  "",
+				Err:     true,
+			},
+		},
+		{
+			name:     "malformed aws hostname",
+			hostname: ".amazonaws.com",
+			expect: expectation{
+				Service: "",
+				Region:  "",
+				Err:     true,
+			},
+		},
+		{
+			name:     "invalid region format",
+			hostname: "ec2.invalid-region.amazonaws.com",
+			expect: expectation{
+				Service: "",
+				Region:  "",
+				Err:     true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, region, err := parseAWSEndpoint(tt.hostname)
+
+			// Prepare the actual result
+			actual := expectation{
+				Service: service,
+				Region:  region,
+				Err:     err != nil,
+			}
+
+			// Compare using cmp package
+			if diff := cmp.Diff(tt.expect, actual); diff != "" {
+				t.Errorf("parseAWSEndpoint mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

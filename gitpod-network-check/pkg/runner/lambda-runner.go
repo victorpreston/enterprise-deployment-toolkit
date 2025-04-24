@@ -54,6 +54,7 @@ type LambdaTestRunner struct {
 const (
 	lambdaFunctionNamePrefix = "gitpod-network-check-"
 	lambdaRoleName           = "GitpodNetworkCheckLambdaRole"
+	inlinePolicyName         = "GitpodNetworkCheckServiceAccessPolicy"
 	lambdaSecurityGroupName  = "gitpod-network-check-lambda-sg"
 )
 
@@ -513,6 +514,7 @@ func (r *LambdaTestRunner) getOrCreateLambdaRole(ctx context.Context) (*string, 
 	policies := []string{
 		"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
 		"arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
+		"arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
 	}
 	for _, policyArn := range policies {
 		log.Infof("Attaching policy %s to role %s", policyArn, roleName)
@@ -526,6 +528,54 @@ func (r *LambdaTestRunner) getOrCreateLambdaRole(ctx context.Context) (*string, 
 			log.Warnf("Failed to attach policy %s: %v. Role %s might be left in an incomplete state.", policyArn, err, roleName)
 			return nil, true, fmt.Errorf("failed to attach policy %s to role %s: %w", policyArn, roleName, err) // Created but failed config
 		}
+	}
+
+	// Attach the custom inline policy for service access
+	inlinePolicyDocument := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Action": [
+					"ssm:DescribeParameters"
+				],
+				"Resource": "*",
+				"Effect": "Allow"
+			},
+			{
+				"Action": [
+					"ssm:GetParameter",
+					"ssm:GetParametersByPath"
+				],
+				"Resource": "arn:aws:ssm:%s:redacted:parameter/*",
+				"Effect": "Allow"
+			},
+			{
+				"Effect": "Allow",
+				"Action": [
+					"ecr:GetAuthorizationToken",
+					"kms:ListKeys",
+					"secretsmanager:ListSecrets",
+					"logs:DescribeLogGroups",
+					"eks:ListClusters",
+					"elasticloadbalancing:DescribeLoadBalancers",
+					"ec2:DescribeRegions",
+					"execute-api:Invoke"
+				],
+				"Resource": "*"
+			}
+		]
+	}`, r.config.AwsRegion)
+	log.Infof("Attaching inline policy %s to role %s", inlinePolicyName, roleName)
+	putPolicyInput := &iam.PutRolePolicyInput{
+		RoleName:       aws.String(roleName),
+		PolicyName:     aws.String(inlinePolicyName),
+		PolicyDocument: aws.String(inlinePolicyDocument),
+	}
+	_, err = r.iamClient.PutRolePolicy(ctx, putPolicyInput)
+	if err != nil {
+		log.Warnf("Failed to attach inline policy %s: %v. Role %s might be left in an incomplete state.", inlinePolicyName, err, roleName)
+		// Don't attempt cleanup here, caller invoking Cleanup() is responsible
+		return nil, true, fmt.Errorf("failed to attach inline policy %s to role %s: %w", inlinePolicyName, roleName, err) // Created but failed config
 	}
 
 	log.Infof("Successfully created and configured IAM role %s", roleName)
@@ -1148,6 +1198,7 @@ func (r *LambdaTestRunner) Cleanup(ctx context.Context) error {
 		policies := []string{
 			"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
 			"arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
+			"arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
 		}
 		for _, policyArn := range policies {
 			log.Debugf("Detaching policy %s from role %s", policyArn, roleName)
@@ -1163,11 +1214,27 @@ func (r *LambdaTestRunner) Cleanup(ctx context.Context) error {
 			}
 		}
 
+		// Delete the inline policy first
+		log.Debugf("Deleting inline policy %s from role %s", inlinePolicyName, roleName)
+		deletePolicyInput := &iam.DeleteRolePolicyInput{
+			RoleName:   aws.String(roleName),
+			PolicyName: aws.String(inlinePolicyName),
+		}
+		_, err := r.iamClient.DeleteRolePolicy(ctx, deletePolicyInput)
+		if err != nil {
+			var nsee *types.NoSuchEntityException
+			if errors.As(err, &nsee) {
+				log.Warnf("Inline policy %s not found on role %s, likely already deleted or never attached.", inlinePolicyName, roleName)
+				// Policy not found is not a blocking error for role deletion, reset err
+				err = nil
+			}
+		}
+
 		// Delete the role
 		deleteInput := &iam.DeleteRoleInput{
 			RoleName: aws.String(roleName),
 		}
-		_, err := r.iamClient.DeleteRole(ctx, deleteInput)
+		_, err = r.iamClient.DeleteRole(ctx, deleteInput)
 		if err != nil {
 			var nsee *types.NoSuchEntityException
 			if errors.As(err, &nsee) {
