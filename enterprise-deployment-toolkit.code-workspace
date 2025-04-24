@@ -20,7 +20,6 @@
         },
         "go.lintTool": "golangci-lint",
         "gopls": {
-            "allowModfileModifications": true
         },
     }
 }

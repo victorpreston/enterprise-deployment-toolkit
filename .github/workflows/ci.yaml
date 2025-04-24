@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+    types: [ opened, edited ]
+  push:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23.1"
+          cache: true
+
+      - name: Check formatting
+        run: |
+          cd gitpod-network-check
+          test -z "$(gofmt -l .)"
+        
+      - name: Run tests
+        run: |
+          cd gitpod-network-check
+          go test -v ./...
+
+      - name: Build with GoReleaser
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          distribution: goreleaser
+          version: v2.8.2
+          args: build --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
