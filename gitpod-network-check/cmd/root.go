@@ -70,10 +70,8 @@ func validateSubnetsConfig(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("At least one Main subnet needs to be specified: %v", NetworkConfig.MainSubnets)
 	}
 	log.Info("✅ Main Subnets are valid")
-	if len(NetworkConfig.PodSubnets) < 1 {
-		return fmt.Errorf("At least one Pod subnet needs to be specified: %v", NetworkConfig.PodSubnets)
-	}
-	log.Info("✅ Pod Subnets are valid")
+
+	// pod subnets are optional, and only relevant for legacy cells anyway
 
 	return nil
 }
